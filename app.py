@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 
-# Configuración
+# Configuración de la página
 st.set_page_config(page_title="Dashboard Desempeño Piton", page_icon="📊", layout="wide")
 st.title("📊 Reporte de Desempeño - Piton")
 
@@ -12,17 +12,17 @@ st.title("📊 Reporte de Desempeño - Piton")
 # ============================
 st.sidebar.header("⚙️ Configuración de datos")
 
-archivo_subido = st.sidebar.file_uploader("Sube tu archivo CSV", type=["csv"])
+archivo_subido = st.sidebar.file_uploader("Sube tu archivo CSV (separador ;)", type=["csv"])
 
-# Ruta de respaldo (CSV en repo)
+# Archivo por defecto en el repo
 ARCHIVO_REPO = "Desempeño-Piton.csv"
 
 try:
     if archivo_subido is not None:
-        df = pd.read_csv(archivo_subido, encoding="utf-8")
+        df = pd.read_csv(archivo_subido, sep=";", encoding="utf-8", engine="python")
         st.sidebar.success("✅ Usando archivo cargado por el usuario")
     else:
-        df = pd.read_csv(ARCHIVO_REPO, encoding="utf-8")
+        df = pd.read_csv(ARCHIVO_REPO, sep=";", encoding="utf-8", engine="python")
         st.sidebar.info("ℹ️ Usando archivo por defecto del repo")
 
     st.success(f"Datos cargados: {df.shape[0]} filas × {df.shape[1]} columnas")
