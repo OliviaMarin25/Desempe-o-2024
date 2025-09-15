@@ -3,31 +3,32 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 
-# Configuración de la página
-st.set_page_config(page_title="Dashboard Desempeño Piton", layout="wide")
+# Configuración
+st.set_page_config(page_title="Dashboard Desempeño Piton", page_icon="📊", layout="wide")
 st.title("📊 Reporte de Desempeño - Piton")
 
 # ============================
 # Carga de datos
 # ============================
-st.sidebar.header("⚙️ Configuración")
+st.sidebar.header("⚙️ Configuración de datos")
 
-# Opción 1: archivo en repo
-ARCHIVO = "Desempeño-Piton.csv"
+archivo_subido = st.sidebar.file_uploader("Sube tu archivo CSV", type=["csv"])
 
-# Opción 2: subir archivo manualmente
-archivo_subido = st.sidebar.file_uploader("Subir archivo CSV", type=["csv"])
+# Ruta de respaldo (CSV en repo)
+ARCHIVO_REPO = "Desempeño-Piton.csv"
 
 try:
-    if archivo_subido:
+    if archivo_subido is not None:
         df = pd.read_csv(archivo_subido, encoding="utf-8")
+        st.sidebar.success("✅ Usando archivo cargado por el usuario")
     else:
-        df = pd.read_csv(ARCHIVO, encoding="utf-8")
+        df = pd.read_csv(ARCHIVO_REPO, encoding="utf-8")
+        st.sidebar.info("ℹ️ Usando archivo por defecto del repo")
 
     st.success(f"Datos cargados: {df.shape[0]} filas × {df.shape[1]} columnas")
 
     # ============================
-    # KPIs básicos
+    # KPIs
     # ============================
     st.subheader("📌 Indicadores Generales")
     c1, c2, c3, c4 = st.columns(4)
@@ -59,9 +60,9 @@ try:
     st.write(f"**Registros filtrados:** {df_filtrado.shape[0]}")
 
     # ============================
-    # Distribuciones
+    # Gráficos comparativos
     # ============================
-    if "Dirección" in df_filtrado.columns:
+    if "Dirección" in df_filtrado.columns and "Desempeño" in df_filtrado.columns:
         st.subheader("📊 Promedio de Desempeño por Dirección")
         fig_dir = px.bar(
             df_filtrado.groupby("Dirección")["Desempeño"].mean().reset_index(),
@@ -69,7 +70,7 @@ try:
         )
         st.plotly_chart(fig_dir, use_container_width=True)
 
-    if "Área" in df_filtrado.columns:
+    if "Área" in df_filtrado.columns and "Desempeño" in df_filtrado.columns:
         st.subheader("📊 Promedio de Desempeño por Área")
         fig_area = px.bar(
             df_filtrado.groupby("Área")["Desempeño"].mean().reset_index(),
@@ -77,7 +78,7 @@ try:
         )
         st.plotly_chart(fig_area, use_container_width=True)
 
-    if "Sub-área" in df_filtrado.columns:
+    if "Sub-área" in df_filtrado.columns and "Desempeño" in df_filtrado.columns:
         st.subheader("📊 Promedio de Desempeño por Sub-área")
         fig_sub = px.bar(
             df_filtrado.groupby("Sub-área")["Desempeño"].mean().reset_index(),
@@ -85,7 +86,7 @@ try:
         )
         st.plotly_chart(fig_sub, use_container_width=True)
 
-    if "Evaluador" in df_filtrado.columns:
+    if "Evaluador" in df_filtrado.columns and "Desempeño" in df_filtrado.columns:
         st.subheader("📊 Promedio de Desempeño por Evaluador")
         fig_eval = px.bar(
             df_filtrado.groupby("Evaluador")["Desempeño"].mean().reset_index(),
@@ -94,13 +95,13 @@ try:
         st.plotly_chart(fig_eval, use_container_width=True)
 
     # ============================
-    # Correlaciones numéricas
+    # Correlaciones
     # ============================
     num_cols = df_filtrado.select_dtypes(include=[np.number]).columns.tolist()
     if len(num_cols) >= 2:
-        st.subheader("📈 Correlación entre variables numéricas")
+        st.subheader("📈 Matriz de Correlación")
         corr = df_filtrado[num_cols].corr()
-        fig_corr = px.imshow(corr, text_auto=True, color_continuous_scale="RdBu_r", title="Matriz de Correlación")
+        fig_corr = px.imshow(corr, text_auto=True, color_continuous_scale="RdBu_r", title="Correlación")
         st.plotly_chart(fig_corr, use_container_width=True)
 
 except Exception as e:
