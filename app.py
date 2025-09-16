@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 import io
 
 # ============================
@@ -114,7 +115,7 @@ try:
         st.markdown("### 🔻 Top 10 Peores Evaluados")
         st.dataframe(peores[["Evaluado", "Cargo", "Evaluador", "Categoría", "Nota"]], use_container_width=True)
 
-        # Descargar CSV (en vez de Excel)
+        # Descargar CSV
         ranking = pd.concat({"Mejores": mejores, "Peores": peores})
         buffer_csv = io.BytesIO()
         ranking.to_csv(buffer_csv, index=False, encoding="utf-8-sig", sep=";")
@@ -183,6 +184,94 @@ try:
             )
             fig_lideres.update_yaxes(title="% sobre líderes")
             st.plotly_chart(fig_lideres, use_container_width=True)
+
+            # ============================
+            # Radar Chart - Competencias de Liderazgo
+            # ============================
+            st.subheader("🕸️ Evaluación de Competencias de Liderazgo (Radar)")
+
+            # Mapeo de categorías a valores numéricos (sin contar "Pendiente")
+            mapa_valores = {
+                "Excepcional": 5,
+                "Destacado": 4,
+                "Cumple": 3,
+                "Cumple Parcialmente": 2,
+                "No cumple": 1
+            }
+
+            comp_cols = [c for c in competencias if c in lideres.columns]
+
+            if comp_cols:
+                # Convertir categorías a valores numéricos y excluir "Pendiente"
+                lideres_num = lideres[comp_cols].replace(mapa_valores)
+
+                # Calcular promedios globales
+                promedios_global = lideres_num.mean()
+
+                # Selección de Dirección para comparar
+                direcciones = ["Toda la clínica"] + sorted(lideres["Dirección"].dropna().unique())
+                dir_sel = st.selectbox("Comparar Dirección específica", direcciones)
+
+                if dir_sel != "Toda la clínica":
+                    lideres_dir = lideres[lideres["Dirección"] == dir_sel]
+                    lideres_dir_num = lideres_dir[comp_cols].replace(mapa_valores)
+                    promedios_dir = lideres_dir_num.mean()
+                else:
+                    promedios_dir = None
+
+                # Crear gráfico radar
+                fig_radar = go.Figure()
+
+                fig_radar.add_trace(go.Scatterpolar(
+                    r=promedios_global.values,
+                    theta=promedios_global.index,
+                    fill='toself',
+                    name="Promedio clínica"
+                ))
+
+                if promedios_dir is not None:
+                    fig_radar.add_trace(go.Scatterpolar(
+                        r=promedios_dir.values,
+                        theta=promedios_dir.index,
+                        fill='toself',
+                        name=f"Promedio {dir_sel}"
+                    ))
+
+                fig_radar.update_layout(
+                    polar=dict(
+                        radialaxis=dict(
+                            visible=True,
+                            range=[1, 5],
+                            tickvals=[1, 2, 3, 4, 5],
+                            ticktext=["No cumple", "Cumple Parcialmente", "Cumple", "Destacado", "Excepcional"]
+                        )
+                    ),
+                    showlegend=True
+                )
+
+                st.plotly_chart(fig_radar, use_container_width=True)
+
+                # ============================
+                # Ranking textual de fortalezas y debilidades
+                # ============================
+                if promedios_dir is not None:
+                    promedios = promedios_dir
+                    contexto = f"en {dir_sel}"
+                else:
+                    promedios = promedios_global
+                    contexto = "en toda la clínica"
+
+                mejor = promedios.idxmax()
+                peor = promedios.idxmin()
+
+                st.markdown(
+                    f"✅ La competencia más fuerte {contexto} es **{mejor}** con un promedio de {promedios[mejor]:.2f}.<br>"
+                    f"⚠️ La competencia más débil {contexto} es **{peor}** con un promedio de {promedios[peor]:.2f}.",
+                    unsafe_allow_html=True
+                )
+
+            else:
+                st.info("No se encontraron las competencias de liderazgo en el archivo cargado.")
 
         else:
             st.info("No se encontraron colaboradores con cargos de liderazgo en el dataset.")
