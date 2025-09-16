@@ -2,8 +2,6 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-import seaborn as sns
-import matplotlib.pyplot as plt
 
 # ============================
 # Configuración de la página
@@ -125,17 +123,27 @@ try:
         st.info("No se encontraron las competencias de liderazgo en el archivo cargado.")
 
     # ============================
-    # Heatmap por líder
+    # Heatmap por líder (Plotly)
     # ============================
     st.subheader("🔥 Evaluación de Competencias de Liderazgo - Heatmap")
 
     if not lideres.empty:
         comp_cols = [c for c in competencias if c in lideres.columns]
-        lideres_num = lideres[["Evaluado"] + comp_cols].set_index("Evaluado").replace(mapa_valores)
+        lideres_num = lideres[["Evaluado"] + comp_cols].copy()
+        for comp in comp_cols:
+            lideres_num[comp] = lideres_num[comp].replace(mapa_valores)
 
-        fig, ax = plt.subplots(figsize=(10, 6))
-        sns.heatmap(lideres_num, annot=True, cmap="RdYlGn", cbar=True, ax=ax)
-        st.pyplot(fig)
+        heatmap_data = lideres_num.set_index("Evaluado")
+
+        fig_heat = px.imshow(
+            heatmap_data,
+            labels=dict(x="Competencias", y="Evaluado", color="Nivel"),
+            x=heatmap_data.columns,
+            y=heatmap_data.index,
+            color_continuous_scale="RdYlGn",
+            aspect="auto"
+        )
+        st.plotly_chart(fig_heat, use_container_width=True)
 
     # ============================
     # Barplot comparativo
@@ -143,7 +151,7 @@ try:
     st.subheader("📊 Promedio de Competencias de Liderazgo")
 
     if not lideres.empty:
-        promedios_comp = lideres_num.mean().reset_index()
+        promedios_comp = heatmap_data.mean().reset_index()
         promedios_comp.columns = ["Competencia", "Promedio"]
 
         fig_bar = px.bar(
