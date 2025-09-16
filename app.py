@@ -1,12 +1,29 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import io
 
 # ============================
 # Configuración de la página
 # ============================
-st.set_page_config(page_title="Dashboard Desempeño Piton", page_icon="📊", layout="wide")
-st.title("📊 Reporte de Desempeño - Piton")
+st.set_page_config(page_title="Dashboard Desempeño 2024", page_icon="📊", layout="wide")
+st.title("📊 Reporte de Desempeño - 2024")
+
+# ============================
+# Función de descarga
+# ============================
+def download_excel(df, nombre_archivo, etiqueta):
+    if df.empty:
+        return
+    buffer = io.BytesIO()
+    with pd.ExcelWriter(buffer, engine="xlsxwriter") as writer:
+        df.to_excel(writer, index=False, sheet_name="Datos")
+    st.download_button(
+        label=f"💾 Descargar {etiqueta} (Excel)",
+        data=buffer.getvalue(),
+        file_name=nombre_archivo,
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
 
 # ============================
 # Carga de datos
@@ -14,7 +31,7 @@ st.title("📊 Reporte de Desempeño - Piton")
 st.sidebar.header("⚙️ Configuración de datos")
 
 archivo_subido = st.sidebar.file_uploader("Sube tu archivo CSV (separador ;)", type=["csv"])
-ARCHIVO_REPO = "Desempeño-Piton.csv"
+ARCHIVO_REPO = "Desempeño 2024.csv"
 
 try:
     if archivo_subido is not None:
@@ -119,22 +136,108 @@ try:
     st.write(f"**Registros filtrados:** {df_filtrado.shape[0]}")
 
     # ============================
-    # Distribución por Categoría
+    # Distribución de Categorías (%)
     # ============================
     if "Categoría" in df_filtrado.columns:
-        st.subheader("📊 Distribución de Categorías")
-        cat_counts = df_filtrado["Categoría"].value_counts().reindex(categoria_orden, fill_value=0).reset_index()
-        cat_counts.columns = ["Categoría", "Cantidad"]
+        st.subheader("📊 Distribución de Categorías (Total %)")
+        cat_counts = (
+            df_filtrado["Categoría"].value_counts(normalize=True)
+            .reindex(categoria_orden, fill_value=0)
+            .mul(100)
+            .reset_index()
+        )
+        cat_counts.columns = ["Categoría", "%"]
 
         fig_cat = px.bar(
             cat_counts,
-            x="Categoría", y="Cantidad",
+            x="Categoría", y="%",
             color="Categoría",
             category_orders={"Categoría": categoria_orden},
             color_discrete_map=categoria_colores,
-            text_auto=True
+            text_auto=".1f"
         )
+        fig_cat.update_layout(yaxis_title="% de evaluados")
         st.plotly_chart(fig_cat, use_container_width=True)
+
+        download_excel(cat_counts, "distribucion_total.xlsx", "Distribución total (%)")
+
+    # ============================
+    # Distribución por Dirección (%)
+    # ============================
+    if "Dirección" in df_filtrado.columns and "Categoría" in df_filtrado.columns:
+        st.subheader("📊 Distribución de Categorías por Dirección (%)")
+        dir_cat = (
+            df_filtrado.groupby(["Dirección", "Categoría"]).size().reset_index(name="Cantidad")
+        )
+        total_dir = dir_cat.groupby("Dirección")["Cantidad"].transform("sum")
+        dir_cat["%"] = dir_cat["Cantidad"] / total_dir * 100
+
+        fig_dir = px.bar(
+            dir_cat,
+            x="Dirección",
+            y="%",
+            color="Categoría",
+            category_orders={"Categoría": categoria_orden},
+            color_discrete_map=categoria_colores,
+            text_auto=".1f",
+            barmode="stack"
+        )
+        fig_dir.update_layout(yaxis_title="% de evaluados")
+        st.plotly_chart(fig_dir, use_container_width=True)
+
+        download_excel(dir_cat, "distribucion_direccion.xlsx", "Distribución por Dirección (%)")
+
+    # ============================
+    # Distribución por Área (%)
+    # ============================
+    if "Área" in df_filtrado.columns and "Categoría" in df_filtrado.columns:
+        st.subheader("📊 Distribución de Categorías por Área (%)")
+        area_cat = (
+            df_filtrado.groupby(["Área", "Categoría"]).size().reset_index(name="Cantidad")
+        )
+        total_area = area_cat.groupby("Área")["Cantidad"].transform("sum")
+        area_cat["%"] = area_cat["Cantidad"] / total_area * 100
+
+        fig_area = px.bar(
+            area_cat,
+            x="Área",
+            y="%",
+            color="Categoría",
+            category_orders={"Categoría": categoria_orden},
+            color_discrete_map=categoria_colores,
+            text_auto=".1f",
+            barmode="stack"
+        )
+        fig_area.update_layout(yaxis_title="% de evaluados")
+        st.plotly_chart(fig_area, use_container_width=True)
+
+        download_excel(area_cat, "distribucion_area.xlsx", "Distribución por Área (%)")
+
+    # ============================
+    # Distribución por Sub-área (%)
+    # ============================
+    if "Sub-área" in df_filtrado.columns and "Categoría" in df_filtrado.columns:
+        st.subheader("📊 Distribución de Categorías por Sub-área (%)")
+        sub_cat = (
+            df_filtrado.groupby(["Sub-área", "Categoría"]).size().reset_index(name="Cantidad")
+        )
+        total_sub = sub_cat.groupby("Sub-área")["Cantidad"].transform("sum")
+        sub_cat["%"] = sub_cat["Cantidad"] / total_sub * 100
+
+        fig_sub = px.bar(
+            sub_cat,
+            x="Sub-área",
+            y="%",
+            color="Categoría",
+            category_orders={"Categoría": categoria_orden},
+            color_discrete_map=categoria_colores,
+            text_auto=".1f",
+            barmode="stack"
+        )
+        fig_sub.update_layout(yaxis_title="% de evaluados")
+        st.plotly_chart(fig_sub, use_container_width=True)
+
+        download_excel(sub_cat, "distribucion_subarea.xlsx", "Distribución por Sub-área (%)")
 
     # ============================
     # Mejores y peores evaluados
@@ -147,20 +250,22 @@ try:
 
         st.markdown("### 🔝 Evaluados con mejores resultados")
         st.dataframe(mejores[["Evaluado", "Cargo", "Evaluador", "Categoría", "Nota"]], use_container_width=True)
+        download_excel(mejores, "mejores_evaluados.xlsx", "Mejores evaluados")
 
         st.markdown("### 🔻 Evaluados con peores resultados")
         st.dataframe(peores[["Evaluado", "Cargo", "Evaluador", "Categoría", "Nota"]], use_container_width=True)
+        download_excel(peores, "peores_evaluados.xlsx", "Peores evaluados")
 
     # ============================
     # Competencias críticas
     # ============================
     competencias = [
         "LIDERAZGO MAGNETICO",
-        "HUMILDAD",
+        "FORMADOR DE PERSONAS",
         "VISIÓN ESTRATÉGICA",
-        "RESOLUTIVIDAD",
         "GENERACIÓN DE REDES",
-        "FORMADOR DE PERSONAS"
+        "HUMILDAD",
+        "RESOLUTIVIDAD"
     ]
 
     st.subheader("⚠️ Personas con Competencias en 'Cumple Parcialmente' o 'No Cumple'")
@@ -169,10 +274,25 @@ try:
             criticos = df[df[comp].isin(["CUMPLE PARCIALMENTE", "NO CUMPLE"])]
             if not criticos.empty:
                 st.markdown(f"### 📌 {comp}")
-                st.dataframe(
-                    criticos[["Evaluado", "Cargo", "Evaluador", comp]],
-                    use_container_width=True
-                )
+                st.dataframe(criticos[["Evaluado", "Cargo", "Evaluador", comp]], use_container_width=True)
+                download_excel(criticos[["Evaluado", "Cargo", "Evaluador", comp]],
+                               f"criticos_{comp.lower().replace(' ', '_')}.xlsx",
+                               f"Críticos en {comp}")
+
+    # ============================
+    # Líderes y sus competencias
+    # ============================
+    st.subheader("👔 Evaluaciones de Liderazgo (Cargos de Jefatura)")
+    cargos_liderazgo = ["COORDINADOR", "JEFE", "SUPERVISOR", "SUBGERENTE", "GERENTE", "DIRECTOR"]
+
+    if "Cargo" in df.columns:
+        lideres = df[df["Cargo"].str.upper().str.contains("|".join(cargos_liderazgo), na=False)]
+        if not lideres.empty:
+            cols_mostrar = ["Evaluado", "Cargo", "Evaluador", "Categoría", "Nota"] + [c for c in competencias if c in df.columns]
+            st.dataframe(lideres[cols_mostrar], use_container_width=True)
+            download_excel(lideres[cols_mostrar], "evaluaciones_liderazgo.xlsx", "Evaluaciones de liderazgo")
+        else:
+            st.info("No se encontraron cargos de liderazgo en los datos cargados.")
 
 except Exception as e:
     st.error(f"❌ Error al cargar el archivo: {e}")
