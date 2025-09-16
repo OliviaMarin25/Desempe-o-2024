@@ -2,12 +2,27 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+import io
 
 # ============================
 # Configuración de la página
 # ============================
 st.set_page_config(page_title="Dashboard Desempeño 2024", page_icon="📊", layout="wide")
 st.title("📊 Reporte de Desempeño - 2024")
+
+# ============================
+# Función para exportar a Excel
+# ============================
+def descargar_excel(df, nombre_archivo, etiqueta="💾 Descargar Excel"):
+    buffer = io.BytesIO()
+    with pd.ExcelWriter(buffer, engine="xlsxwriter") as writer:
+        df.to_excel(writer, index=False, sheet_name="Datos")
+    st.download_button(
+        label=etiqueta,
+        data=buffer.getvalue(),
+        file_name=nombre_archivo,
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
 
 # ============================
 # Carga de datos
@@ -125,7 +140,6 @@ try:
     # ============================
     if "Categoría" in df_filtrado.columns:
         st.subheader("📊 Distribución de Categorías (%)")
-        total = len(df_filtrado)
         cat_counts = (
             df_filtrado["Categoría"].value_counts(normalize=True) * 100
         ).reindex(categoria_orden, fill_value=0).reset_index()
@@ -142,6 +156,8 @@ try:
         fig_cat.update_layout(yaxis_title="Porcentaje (%)")
         st.plotly_chart(fig_cat, use_container_width=True)
 
+        descargar_excel(cat_counts, "Distribucion_Categorias.xlsx")
+
     # ============================
     # Mejores y peores evaluados
     # ============================
@@ -153,9 +169,34 @@ try:
 
         st.markdown("### 🔝 Top 10 mejores resultados")
         st.dataframe(mejores[["Evaluado", "Cargo", "Evaluador", "Categoría", "Nota"]], use_container_width=True)
+        descargar_excel(mejores, "Top10_Mejores.xlsx", "💾 Descargar Excel (Mejores)")
 
         st.markdown("### 🔻 Top 20 peores resultados")
         st.dataframe(peores[["Evaluado", "Cargo", "Evaluador", "Categoría", "Nota"]], use_container_width=True)
+        descargar_excel(peores, "Top20_Peores.xlsx", "💾 Descargar Excel (Peores)")
+
+    # ============================
+    # Tabla de líderes
+    # ============================
+    st.subheader("👔 Líderes y Evaluación de Competencias")
+    cargos_lider = ["COORDINADOR", "JEFE", "SUPERVISOR", "SUBGERENTE", "GERENTE", "DIRECTOR"]
+
+    if "Cargo" in df.columns:
+        lideres = df[df["Cargo"].str.upper().str.contains("|".join(cargos_lider), na=False)]
+
+        comp_cols = [
+            "Liderazgo Magnético",
+            "Formador de Personas",
+            "Visión Estratégica",
+            "Generación de Redes y Relaciones Efectivas",
+            "Humildad",
+            "Resolutividad"
+        ]
+        cols_finales = ["Evaluado","Cargo","Evaluador","Categoría","Nota"] + [c for c in comp_cols if c in df.columns]
+
+        if not lideres.empty:
+            st.dataframe(lideres[cols_finales], use_container_width=True)
+            descargar_excel(lideres[cols_finales], "Lideres_Competencias.xlsx")
 
     # ============================
     # Competencias críticas
@@ -175,10 +216,8 @@ try:
             criticos = df[df[comp].isin(["CUMPLE PARCIALMENTE", "NO CUMPLE"])]
             if not criticos.empty:
                 st.markdown(f"### 📌 {comp}")
-                st.dataframe(
-                    criticos[["Evaluado", "Cargo", "Evaluador", comp]],
-                    use_container_width=True
-                )
+                st.dataframe(criticos[["Evaluado", "Cargo", "Evaluador", comp]], use_container_width=True)
+                descargar_excel(criticos[["Evaluado", "Cargo", "Evaluador", comp]], f"Criticos_{comp}.xlsx")
 
     # ============================
     # Radar + Tabla + Barplot
@@ -231,15 +270,14 @@ try:
         )
         st.plotly_chart(fig_radar, use_container_width=True)
 
-        # Tabla de resultados promedios
         tabla = pd.DataFrame({
             "Competencia": categorias,
             "Promedio Clínica": valores_clinica,
             f"Promedio {dir_sel}": valores_dir if valores_dir else ["-"]*len(categorias)
         })
         st.dataframe(tabla, use_container_width=True)
+        descargar_excel(tabla, "Competencias_Liderazgo.xlsx")
 
-        # Barplot comparativo
         st.subheader("📊 Promedio de Competencias de Liderazgo")
         datos_bar = pd.DataFrame({
             "Competencia": categorias,
@@ -254,6 +292,7 @@ try:
             text_auto=".2f", range_y=[1,5]
         )
         st.plotly_chart(fig_bar, use_container_width=True)
+        descargar_excel(datos_bar, "Comparacion_Competencias.xlsx")
 
 except Exception as e:
     st.error(f"❌ Error al cargar el archivo: {e}")
