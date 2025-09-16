@@ -6,23 +6,38 @@ import plotly.express as px
 # Configuración de la página
 # ============================
 st.set_page_config(page_title="Dashboard Desempeño Piton", page_icon="📊", layout="wide")
-st.title("📊 Reporte de Desempeño - Piton")
+st.title("📊 Reporte de Desempeño - Piton / Histórico")
 
 # ============================
 # Carga de datos
 # ============================
 st.sidebar.header("⚙️ Configuración de datos")
 
-archivo_subido = st.sidebar.file_uploader("Sube tu archivo CSV (separador ;)", type=["csv"])
-ARCHIVO_REPO = "Desempeño-Piton.csv"
+archivo_piton = st.sidebar.file_uploader("Sube archivo Desempeño-Piton (CSV ;)", type=["csv"], key="piton")
+archivo_historico = st.sidebar.file_uploader("Sube archivo Histórico (CSV ;)", type=["csv"], key="historico")
+
+# Archivos por defecto en el repo
+ARCHIVO_PITON = "Desempeño-Piton.csv"
+ARCHIVO_HIST = "Historico.csv"
+
+# Selección de dataset
+dataset_sel = st.sidebar.radio("Selecciona dataset a analizar:", ["Desempeño-Piton", "Histórico"])
 
 try:
-    if archivo_subido is not None:
-        df = pd.read_csv(archivo_subido, sep=";", encoding="utf-8", engine="python")
-        st.sidebar.success("✅ Usando archivo cargado por el usuario")
+    if dataset_sel == "Desempeño-Piton":
+        if archivo_piton is not None:
+            df = pd.read_csv(archivo_piton, sep=";", encoding="utf-8", engine="python")
+            st.sidebar.success("✅ Usando archivo Desempeño-Piton cargado por el usuario")
+        else:
+            df = pd.read_csv(ARCHIVO_PITON, sep=";", encoding="utf-8", engine="python")
+            st.sidebar.info("ℹ️ Usando archivo Desempeño-Piton por defecto")
     else:
-        df = pd.read_csv(ARCHIVO_REPO, sep=";", encoding="utf-8", engine="python")
-        st.sidebar.info("ℹ️ Usando archivo por defecto del repo")
+        if archivo_historico is not None:
+            df = pd.read_csv(archivo_historico, sep=";", encoding="utf-8", engine="python")
+            st.sidebar.success("✅ Usando archivo Histórico cargado por el usuario")
+        else:
+            df = pd.read_csv(ARCHIVO_HIST, sep=";", encoding="utf-8", engine="python")
+            st.sidebar.info("ℹ️ Usando archivo Histórico por defecto")
 
     # ============================
     # Normalización de columnas
@@ -42,19 +57,28 @@ try:
             "PENDIENTE": "Pendiente"
         })
 
-    st.success(f"Datos cargados: {df.shape[0]} filas × {df.shape[1]} columnas")
+    st.success(f"📂 Dataset seleccionado: **{dataset_sel}** → {df.shape[0]} filas × {df.shape[1]} columnas")
 
     # ============================
-    # Paleta de colores personalizada
+    # Paleta de colores y orden
     # ============================
     categoria_colores = {
-        "No cumple": "red",
-        "Cumple Parcialmente": "gold",
-        "Cumple": "green",
-        "Destacado": "skyblue",
         "Excepcional": "violet",
+        "Destacado": "skyblue",
+        "Cumple": "green",
+        "Cumple Parcialmente": "gold",
+        "No cumple": "red",
         "Pendiente": "lightgrey"
     }
+
+    categoria_orden = [
+        "Excepcional",
+        "Destacado",
+        "Cumple",
+        "Cumple Parcialmente",
+        "No cumple",
+        "Pendiente"
+    ]
 
     # ============================
     # KPIs
@@ -114,12 +138,14 @@ try:
     # ============================
     if "Categoría" in df_filtrado.columns:
         st.subheader("📊 Distribución de Categorías")
-        cat_counts = df_filtrado["Categoría"].value_counts().reset_index()
+        cat_counts = df_filtrado["Categoría"].value_counts().reindex(categoria_orden, fill_value=0).reset_index()
         cat_counts.columns = ["Categoría", "Cantidad"]
+
         fig_cat = px.bar(
             cat_counts,
             x="Categoría", y="Cantidad",
             color="Categoría",
+            category_orders={"Categoría": categoria_orden},
             color_discrete_map=categoria_colores,
             text_auto=True
         )
