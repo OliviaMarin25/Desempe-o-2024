@@ -2,26 +2,12 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-import io
 
 # ============================
 # Configuración de la página
 # ============================
 st.set_page_config(page_title="Dashboard Desempeño 2024", page_icon="📊", layout="wide")
 st.title("📊 Reporte de Desempeño - 2024")
-
-# ============================
-# Función para exportar (CSV en vez de Excel)
-# ============================
-def descargar_csv(df, nombre_archivo, etiqueta="💾 Descargar CSV"):
-    buffer = io.StringIO()
-    df.to_csv(buffer, index=False, sep=";")
-    st.download_button(
-        label=etiqueta,
-        data=buffer.getvalue(),
-        file_name=nombre_archivo,
-        mime="text/csv"
-    )
 
 # ============================
 # Carga de datos
@@ -57,19 +43,6 @@ try:
             "PENDIENTE": "Pendiente"
         })
 
-    # ============================
-    # Normalización de competencias
-    # ============================
-    mapa_competencias = {
-        "HUMILDAD": "Humildad",
-        "RESOLUTIVIDAD": "Resolutividad",
-        "FORMADOR DE": "Formador de Personas",
-        "LIDERAZGO MA": "Liderazgo Magnético",
-        "VISION ESTRAT": "Visión Estratégica",
-        "GENERACION D": "Generación de Redes y Relaciones Efectivas"
-    }
-    df.rename(columns=lambda c: mapa_competencias.get(c.strip().upper(), c), inplace=True)
-
     st.success(f"Datos cargados: {df.shape[0]} filas × {df.shape[1]} columnas")
 
     # ============================
@@ -83,7 +56,15 @@ try:
         "No cumple": "red",
         "Pendiente": "lightgrey"
     }
-    categoria_orden = ["Excepcional","Destacado","Cumple","Cumple Parcialmente","No cumple","Pendiente"]
+
+    categoria_orden = [
+        "Excepcional",
+        "Destacado",
+        "Cumple",
+        "Cumple Parcialmente",
+        "No cumple",
+        "Pendiente"
+    ]
 
     # ============================
     # KPIs
@@ -139,9 +120,8 @@ try:
     # ============================
     if "Categoría" in df_filtrado.columns:
         st.subheader("📊 Distribución de Categorías (%)")
-        cat_counts = (
-            df_filtrado["Categoría"].value_counts(normalize=True) * 100
-        ).reindex(categoria_orden, fill_value=0).reset_index()
+        cat_counts = df_filtrado["Categoría"].value_counts(normalize=True).reindex(categoria_orden, fill_value=0) * 100
+        cat_counts = cat_counts.reset_index()
         cat_counts.columns = ["Categoría", "Porcentaje"]
 
         fig_cat = px.bar(
@@ -152,10 +132,10 @@ try:
             color_discrete_map=categoria_colores,
             text_auto=".1f"
         )
-        fig_cat.update_layout(yaxis_title="Porcentaje (%)")
+        fig_cat.update_yaxes(title="Porcentaje (%)")
         st.plotly_chart(fig_cat, use_container_width=True)
 
-        descargar_csv(cat_counts, "Distribucion_Categorias.csv")
+        st.download_button("⬇️ Descargar distribución (CSV)", cat_counts.to_csv(index=False).encode("utf-8"), "distribucion_categorias.csv", "text/csv")
 
     # ============================
     # Mejores y peores evaluados
@@ -166,19 +146,83 @@ try:
         mejores = df_filtrado.sort_values("Nota", ascending=False).head(10)
         peores = df_filtrado.sort_values("Nota", ascending=True).head(20)
 
-        st.markdown("### 🔝 Top 10 mejores resultados")
+        st.markdown("### 🔝 Top 10 Mejores Evaluados")
         st.dataframe(mejores[["Evaluado", "Cargo", "Evaluador", "Categoría", "Nota"]], use_container_width=True)
-        descargar_csv(mejores, "Top10_Mejores.csv", "💾 Descargar CSV (Mejores)")
+        st.download_button("⬇️ Descargar mejores (CSV)", mejores.to_csv(index=False).encode("utf-8"), "top_mejores.csv", "text/csv")
 
-        st.markdown("### 🔻 Top 20 peores resultados")
+        st.markdown("### 🔻 Top 20 Peores Evaluados")
         st.dataframe(peores[["Evaluado", "Cargo", "Evaluador", "Categoría", "Nota"]], use_container_width=True)
-        descargar_csv(peores, "Top20_Peores.csv", "💾 Descargar CSV (Peores)")
+        st.download_button("⬇️ Descargar peores (CSV)", peores.to_csv(index=False).encode("utf-8"), "top_peores.csv", "text/csv")
 
     # ============================
-    # (Mantener: tabla de líderes + radar + comparaciones)
+    # Colaboradores con cargos de liderazgo
     # ============================
-    # ... (igual al último código, solo cambiar `descargar_excel` por `descargar_csv`)
+    st.subheader("👩‍💼👨‍💼 Colaboradores con cargos de Liderazgo")
+
+    cargos_liderazgo = ["JEFE", "COORDINADOR", "SUPERVISOR", "SUBGERENTE", "GERENTE", "DIRECTOR"]
+    mask_lideres = df["Cargo"].str.upper().str.contains("|".join(cargos_liderazgo), na=False)
+    df_lideres = df[mask_lideres].copy()
+
+    if not df_lideres.empty:
+        st.dataframe(df_lideres[["Evaluado", "Cargo", "Evaluador", "Categoría", "Nota"]], use_container_width=True)
+        st.download_button("⬇️ Descargar listado de líderes (CSV)", df_lideres.to_csv(index=False).encode("utf-8"), "lideres.csv", "text/csv")
+
     # ============================
+    # Radar de competencias de liderazgo
+    # ============================
+    st.subheader("🕸️ Evaluación de Competencias de Liderazgo (Radar)")
+
+    competencias = [
+        "Liderazgo Magnético",
+        "Formador de Personas",
+        "Visión Estratégica",
+        "Generación de Redes y Relaciones Efectivas",
+        "Humildad",
+        "Resolutividad"
+    ]
+
+    if all(col in df.columns for col in competencias):
+        df_comp = df_lideres.copy()
+        df_comp = df_comp[df_comp["Categoría"] != "Pendiente"]
+
+        mapping = {"No cumple": 1, "Cumple Parcialmente": 2, "Cumple": 3, "Destacado": 4, "Excepcional": 5}
+        for col in competencias:
+            df_comp[col] = pd.to_numeric(df_comp[col], errors="coerce").fillna(df_comp[col].map(mapping))
+
+        promedio_clinica = df_comp[competencias].mean()
+
+        dir_sel_radar = st.selectbox("Comparar dirección específica", ["Ninguna"] + list(df["Dirección"].dropna().unique()))
+        if dir_sel_radar != "Ninguna":
+            promedio_dir = df_comp[df_comp["Dirección"] == dir_sel_radar][competencias].mean()
+        else:
+            promedio_dir = None
+
+        fig = go.Figure()
+
+        fig.add_trace(go.Scatterpolar(
+            r=promedio_clinica.values,
+            theta=competencias,
+            fill='toself',
+            name='Promedio clínica'
+        ))
+
+        if promedio_dir is not None and not promedio_dir.isnull().all():
+            fig.add_trace(go.Scatterpolar(
+                r=promedio_dir.values,
+                theta=competencias,
+                fill='toself',
+                name=f'{dir_sel_radar}'
+            ))
+
+        fig.update_layout(
+            polar=dict(radialaxis=dict(visible=True, range=[0, 5])),
+            showlegend=True
+        )
+
+        st.plotly_chart(fig, use_container_width=True)
+
+    else:
+        st.info("⚠️ No se encontraron todas las competencias de liderazgo en el archivo cargado.")
 
 except Exception as e:
     st.error(f"❌ Error al cargar el archivo: {e}")
