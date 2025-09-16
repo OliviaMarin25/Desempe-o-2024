@@ -42,7 +42,6 @@ try:
         if columna in df.columns and "Categoría" in df.columns:
             st.subheader(f"📊 Análisis por {nombre}")
 
-            # Tabla de distribución %
             resumen = (
                 df.groupby(columna)["Categoría"]
                 .value_counts(normalize=True)
@@ -54,8 +53,6 @@ try:
             st.markdown("**📋 Distribución (%) de Categorías**")
             st.dataframe(resumen, use_container_width=True)
 
-            # Gráfico de barras apiladas
-            st.markdown("**📊 Gráfico de Distribución**")
             fig = px.bar(
                 resumen,
                 x=columna,
@@ -67,9 +64,12 @@ try:
             )
             st.plotly_chart(fig, use_container_width=True)
 
-            # Detalle por grupo seleccionado
-            seleccion = st.selectbox(f"🔎 Ver detalle de un {nombre}", resumen[columna].unique(), key=columna)
-            detalle = df[df[columna] == seleccion][["Evaluado", "Cargo", "Evaluador", "Categoría"]]
+            seleccion = st.selectbox(
+                f"🔎 Ver detalle de un {nombre}",
+                resumen[columna].unique(),
+                key=columna
+            )
+            detalle = df[df[columna] == seleccion][["Evaluado", "Cargo", "Evaluador", "Categoría", "NOTA"]]
             st.markdown(f"**Detalle de colaboradores en {seleccion}**")
             st.dataframe(detalle, use_container_width=True)
 
@@ -81,17 +81,23 @@ try:
     analisis_por_grupo("Sub-área", "Sub-área")
 
     # ============================
-    # Mejores y peores evaluados
+    # Mejores y peores evaluados (ranking por NOTA)
     # ============================
     st.subheader("🏆 Mejores y Peores Evaluados")
-    mejores = df[df["Categoría"].isin(["CUMPLE", "ALTO DESEMPEÑO"])]
-    peores = df[df["Categoría"].isin(["CUMPLE PARCIALMENTE", "NO CUMPLE"])]
 
-    st.markdown("**🔝 Evaluados con mejores resultados**")
-    st.dataframe(mejores[["Evaluado", "Cargo", "Evaluador", "Categoría"]].head(10), use_container_width=True)
+    if "NOTA" in df.columns:
+        df["NOTA"] = pd.to_numeric(df["NOTA"], errors="coerce")
 
-    st.markdown("**🔻 Evaluados con peores resultados**")
-    st.dataframe(peores[["Evaluado", "Cargo", "Evaluador", "Categoría"]].head(10), use_container_width=True)
+        mejores = df.sort_values("NOTA", ascending=False).head(10)
+        peores = df.sort_values("NOTA", ascending=True).head(10)
+
+        st.markdown("**🔝 Top 10 Mejores Evaluados (por NOTA)**")
+        st.dataframe(mejores[["Evaluado", "Cargo", "Evaluador", "Categoría", "NOTA"]], use_container_width=True)
+
+        st.markdown("**🔻 Top 10 Peores Evaluados (por NOTA)**")
+        st.dataframe(peores[["Evaluado", "Cargo", "Evaluador", "Categoría", "NOTA"]], use_container_width=True)
+    else:
+        st.warning("⚠️ La columna 'NOTA' no está disponible en el archivo.")
 
     # ============================
     # Competencias críticas
@@ -108,11 +114,11 @@ try:
     st.subheader("⚠️ Personas con Competencias en 'Cumple Parcialmente' o 'No Cumple'")
     for comp in competencias:
         if comp in df.columns:
-            criticos = df[df[comp].isin(["CUMPLE PARCIALMENTE", "NO CUMPLE"])]
+            criticos = df[df[comp].isin(["Cumple Parcialmente", "No Cumple"])]
             if not criticos.empty:
                 st.markdown(f"### 📌 {comp}")
                 st.dataframe(
-                    criticos[["Evaluado", "Cargo", "Evaluador", comp]],
+                    criticos[["Evaluado", "Cargo", "Evaluador", comp, "NOTA"]],
                     use_container_width=True
                 )
 
