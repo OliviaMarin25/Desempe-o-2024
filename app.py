@@ -41,68 +41,66 @@ try:
         c4.metric("Promedio Desempeño", round(df["Desempeño"].mean(), 2))
 
     # ============================
-    # Filtros
-    # ============================
-    st.sidebar.subheader("🔎 Filtros")
-    filtros = {}
-    for col in ["Dirección", "Área", "Sub-área", "Evaluador"]:
-        if col in df.columns:
-            valores = sorted(df[col].dropna().unique())
-            seleccionados = st.sidebar.multiselect(f"{col}", valores, default=[])
-            if seleccionados:
-                filtros[col] = seleccionados
-
-    # Aplicar filtros
-    df_filtrado = df.copy()
-    for col, valores in filtros.items():
-        df_filtrado = df_filtrado[df_filtrado[col].isin(valores)]
-
-    st.write(f"**Registros filtrados:** {df_filtrado.shape[0]}")
-
-    # ============================
     # Gráficos comparativos
     # ============================
-    if "Dirección" in df_filtrado.columns and "Desempeño" in df_filtrado.columns:
+    if "Dirección" in df.columns and "Desempeño" in df.columns:
         st.subheader("📊 Promedio de Desempeño por Dirección")
         fig_dir = px.bar(
-            df_filtrado.groupby("Dirección")["Desempeño"].mean().reset_index(),
+            df.groupby("Dirección")["Desempeño"].mean().reset_index(),
             x="Dirección", y="Desempeño", text_auto=".2f", color="Desempeño"
         )
         st.plotly_chart(fig_dir, use_container_width=True)
 
-    if "Área" in df_filtrado.columns and "Desempeño" in df_filtrado.columns:
+    if "Área" in df.columns and "Desempeño" in df.columns:
         st.subheader("📊 Promedio de Desempeño por Área")
         fig_area = px.bar(
-            df_filtrado.groupby("Área")["Desempeño"].mean().reset_index(),
+            df.groupby("Área")["Desempeño"].mean().reset_index(),
             x="Área", y="Desempeño", text_auto=".2f", color="Desempeño"
         )
         st.plotly_chart(fig_area, use_container_width=True)
 
-    if "Sub-área" in df_filtrado.columns and "Desempeño" in df_filtrado.columns:
+    if "Sub-área" in df.columns and "Desempeño" in df.columns:
         st.subheader("📊 Promedio de Desempeño por Sub-área")
         fig_sub = px.bar(
-            df_filtrado.groupby("Sub-área")["Desempeño"].mean().reset_index(),
+            df.groupby("Sub-área")["Desempeño"].mean().reset_index(),
             x="Sub-área", y="Desempeño", text_auto=".2f", color="Desempeño"
         )
         st.plotly_chart(fig_sub, use_container_width=True)
 
-    if "Evaluador" in df_filtrado.columns and "Desempeño" in df_filtrado.columns:
-        st.subheader("📊 Promedio de Desempeño por Evaluador")
-        fig_eval = px.bar(
-            df_filtrado.groupby("Evaluador")["Desempeño"].mean().reset_index(),
-            x="Evaluador", y="Desempeño", text_auto=".2f", color="Desempeño"
-        )
-        st.plotly_chart(fig_eval, use_container_width=True)
+    # ============================
+    # Mejores y peores evaluados
+    # ============================
+    if "Desempeño" in df.columns and "Nombre" in df.columns:
+        st.subheader("🏆 Mejores y Peores Evaluados")
+
+        top5 = df.nlargest(5, "Desempeño")[["Nombre", "Cargo", "Evaluador", "Desempeño"]]
+        low5 = df.nsmallest(5, "Desempeño")[["Nombre", "Cargo", "Evaluador", "Desempeño"]]
+
+        st.markdown("**🔝 Top 5 Mejores Evaluados**")
+        st.dataframe(top5, use_container_width=True)
+
+        st.markdown("**🔻 Top 5 Peores Evaluados**")
+        st.dataframe(low5, use_container_width=True)
 
     # ============================
-    # Correlaciones
+    # Competencias críticas
     # ============================
-    num_cols = df_filtrado.select_dtypes(include=[np.number]).columns.tolist()
-    if len(num_cols) >= 2:
-        st.subheader("📈 Matriz de Correlación")
-        corr = df_filtrado[num_cols].corr()
-        fig_corr = px.imshow(corr, text_auto=True, color_continuous_scale="RdBu_r", title="Correlación")
-        st.plotly_chart(fig_corr, use_container_width=True)
+    competencias = [
+        "LIDERAZGO MAGNETICO",
+        "HUMILDAD",
+        "VISIÓN ESTRATÉGICA",
+        "RESOLUTIVIDAD",
+        "GENERACIÓN DE REDES",
+        "FORMADOR DE PERSONAS"
+    ]
+
+    st.subheader("⚠️ Personas con Competencias en 'Cumple Parcialmente' o 'No Cumple'")
+    for comp in competencias:
+        if comp in df.columns:
+            criticos = df[df[comp].isin(["CUMPLE PARCIALMENTE", "NO CUMPLE"])]
+            if not criticos.empty:
+                st.markdown(f"### 📌 {comp}")
+                st.dataframe(criticos[["Nombre", "Cargo", "Evaluador", comp]], use_container_width=True)
 
 except Exception as e:
     st.error(f"❌ Error al cargar el archivo: {e}")
