@@ -2,7 +2,8 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-import io
+import seaborn as sns
+import matplotlib.pyplot as plt
 
 # ============================
 # Configuración de la página
@@ -44,208 +45,128 @@ try:
             "PENDIENTE": "Pendiente"
         })
 
-    # ============================
-    # Normalización de competencias de liderazgo
-    # ============================
-    mapa_competencias = {
-        "HUMILDAD": "Humildad",
-        "RESOLUTIVIDAD": "Resolutividad",
-        "FORMADOR DE": "Formador de Personas",
-        "LIDERAZGO MA": "Liderazgo Magnético",
-        "VISION ESTRAT": "Visión Estratégica",
-        "GENERACION D": "Generación de Redes y Relaciones Efectivas"
-    }
-
-    df.rename(columns=lambda c: mapa_competencias.get(c.strip().upper(), c), inplace=True)
-
     st.success(f"Datos cargados: {df.shape[0]} filas × {df.shape[1]} columnas")
 
     # ============================
-    # Paleta de colores y orden
+    # Competencias de Liderazgo
     # ============================
-    categoria_colores = {
-        "Excepcional": "violet",
-        "Destacado": "skyblue",
-        "Cumple": "green",
-        "Cumple Parcialmente": "gold",
-        "No cumple": "red",
-        "Pendiente": "lightgrey"
-    }
-
-    categoria_orden = [
-        "Excepcional",
-        "Destacado",
-        "Cumple",
-        "Cumple Parcialmente",
-        "No cumple",
-        "Pendiente"
+    competencias = [
+        "Liderazgo Magnético",
+        "Formador de Personas",
+        "Visión Estratégica",
+        "Generación de Redes y Relaciones Efectivas",
+        "Humildad",
+        "Resolutividad"
     ]
 
-    # ============================
-    # KPIs
-    # ============================
-    st.subheader("📌 Indicadores Generales")
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Total registros", len(df))
-    if "Dirección" in df.columns:
-        c2.metric("Direcciones", df["Dirección"].nunique())
-    if "Área" in df.columns:
-        c3.metric("Áreas", df["Área"].nunique())
-    if "Nota" in df.columns:
-        c4.metric("Promedio Nota", round(df["Nota"].mean(), 2))
+    # Mapeo de categorías a números
+    mapa_valores = {
+        "No cumple": 1,
+        "Cumple Parcialmente": 2,
+        "Cumple": 3,
+        "Destacado": 4,
+        "Excepcional": 5
+    }
+
+    # Filtrar líderes
+    lideres = df[df["Cargo"].str.contains("COORDINADOR|JEFE|SUPERVISOR|SUBGERENTE|GERENTE|DIRECTOR",
+                                         case=False, na=False)].copy()
 
     # ============================
-    # Distribución por Categoría (%)
+    # Radar Chart comparativo
     # ============================
-    if "Categoría" in df.columns:
-        st.subheader("📊 Distribución de Categorías")
-        cat_counts = df["Categoría"].value_counts(normalize=True).reindex(categoria_orden, fill_value=0).reset_index()
-        cat_counts.columns = ["Categoría", "Porcentaje"]
-        cat_counts["Porcentaje"] *= 100
+    st.subheader("🌐 Evaluación de Competencias de Liderazgo (Radar)")
 
-        fig_cat = px.bar(
-            cat_counts,
-            x="Categoría", y="Porcentaje",
-            color="Categoría",
-            category_orders={"Categoría": categoria_orden},
-            color_discrete_map=categoria_colores,
-            text_auto=".1f"
-        )
-        fig_cat.update_yaxes(title="% sobre total")
-        st.plotly_chart(fig_cat, use_container_width=True)
+    if all(c in lideres.columns for c in competencias):
+        lideres_num = lideres.copy()
+        for comp in competencias:
+            lideres_num[comp] = lideres_num[comp].replace(mapa_valores)
 
-    # ============================
-    # Mejores y peores evaluados
-    # ============================
-    if "Nota" in df.columns:
-        st.subheader("🏆 Mejores y Peores Evaluados")
+        # Promedio clínica
+        promedio_clinica = lideres_num[competencias].mean()
 
-        mejores = df.sort_values("Nota", ascending=False).head(10)
-        peores = df.sort_values("Nota", ascending=True).head(10)
+        # Selector de Dirección
+        direcciones = ["Toda la clínica"] + sorted(lideres_num["Dirección"].dropna().unique())
+        dir_sel = st.selectbox("Comparar dirección específica", direcciones)
 
-        st.markdown("### 🔝 Top 10 Mejores Evaluados")
-        st.dataframe(mejores[["Evaluado", "Cargo", "Evaluador", "Categoría", "Nota"]], use_container_width=True)
-
-        st.markdown("### 🔻 Top 10 Peores Evaluados")
-        st.dataframe(peores[["Evaluado", "Cargo", "Evaluador", "Categoría", "Nota"]], use_container_width=True)
-
-        # Descargar CSV
-        ranking = pd.concat({"Mejores": mejores, "Peores": peores})
-        buffer_csv = io.BytesIO()
-        ranking.to_csv(buffer_csv, index=False, encoding="utf-8-sig", sep=";")
-        st.download_button(
-            label="📥 Descargar Ranking (CSV)",
-            data=buffer_csv.getvalue(),
-            file_name="Ranking_Desempeno2024.csv",
-            mime="text/csv"
-        )
-
-    # ============================
-    # Liderazgo - cargos clave
-    # ============================
-    st.subheader("👩‍💼👨‍💼 Colaboradores con cargos de Liderazgo")
-
-    if "Cargo" in df.columns:
-        df["Cargo_upper"] = df["Cargo"].str.upper()
-        cargos_liderazgo = [
-            "COORDINADOR", "COORDINADORA",
-            "JEFE", "JEFA",
-            "SUPERVISOR", "SUPERVISORA",
-            "SUBGERENTE", "SUBGERENTA",
-            "GERENTE", "GERENTA",
-            "DIRECTOR", "DIRECTORA"
-        ]
-        lideres = df[df["Cargo_upper"].str.contains("|".join(cargos_liderazgo), regex=True, na=False)]
-
-        if not lideres.empty:
-            competencias = [
-                "Liderazgo Magnético",
-                "Formador de Personas",
-                "Visión Estratégica",
-                "Generación de Redes y Relaciones Efectivas",
-                "Humildad",
-                "Resolutividad"
-            ]
-            cols_a_mostrar = ["Evaluado", "Cargo", "Evaluador", "Categoría", "Nota"] + [c for c in competencias if c in lideres.columns]
-
-            st.dataframe(lideres[cols_a_mostrar], use_container_width=True)
-
-            # Descargar CSV
-            buffer_csv = io.BytesIO()
-            lideres[cols_a_mostrar].to_csv(buffer_csv, index=False, encoding="utf-8-sig", sep=";")
-            st.download_button(
-                label="📥 Descargar listado de líderes (CSV)",
-                data=buffer_csv.getvalue(),
-                file_name="Lideres_Desempeno2024.csv",
-                mime="text/csv"
-            )
-
-            # ============================
-            # Radar Chart - Competencias de Liderazgo
-            # ============================
-            st.subheader("🕸️ Evaluación de Competencias de Liderazgo (Radar)")
-
-            mapa_valores = {
-                "Excepcional": 5,
-                "Destacado": 4,
-                "Cumple": 3,
-                "Cumple Parcialmente": 2,
-                "No cumple": 1
-            }
-
-            comp_cols = [c for c in competencias if c in lideres.columns]
-
-            if comp_cols:
-                lideres_num = lideres[comp_cols].replace(mapa_valores)
-                promedios_clinica = lideres_num.mean()
-
-                # Comparación por dirección
-                direcciones = ["Toda la clínica"] + sorted(lideres["Dirección"].dropna().unique())
-                dir_sel = st.selectbox("Comparar dirección específica", direcciones)
-
-                if dir_sel == "Toda la clínica":
-                    promedios_dir = promedios_clinica
-                else:
-                    lideres_dir = lideres[lideres["Dirección"] == dir_sel]
-                    promedios_dir = lideres_dir[comp_cols].replace(mapa_valores).mean()
-
-                fig_radar = go.Figure()
-
-                # Promedio clínica
-                fig_radar.add_trace(go.Scatterpolar(
-                    r=promedios_clinica.values,
-                    theta=promedios_clinica.index,
-                    fill='toself',
-                    name="Promedio clínica"
-                ))
-
-                # Promedio dirección
-                fig_radar.add_trace(go.Scatterpolar(
-                    r=promedios_dir.values,
-                    theta=promedios_dir.index,
-                    fill='toself',
-                    name=f"{dir_sel}"
-                ))
-
-                fig_radar.update_layout(
-                    polar=dict(
-                        radialaxis=dict(
-                            visible=True,
-                            range=[0, 5],
-                            tickvals=[1, 2, 3, 4, 5],
-                            ticktext=["No cumple", "Cumple Parcialmente", "Cumple", "Destacado", "Excepcional"]
-                        )
-                    ),
-                    showlegend=True
-                )
-
-                st.plotly_chart(fig_radar, use_container_width=True)
-
-            else:
-                st.info("No se encontraron las competencias de liderazgo en el archivo cargado.")
-
+        if dir_sel != "Toda la clínica":
+            promedio_dir = lideres_num[lideres_num["Dirección"] == dir_sel][competencias].mean()
         else:
-            st.info("No se encontraron colaboradores con cargos de liderazgo en el dataset.")
+            promedio_dir = None
+
+        categorias = competencias
+        fig_radar = go.Figure()
+
+        fig_radar.add_trace(go.Scatterpolar(
+            r=promedio_clinica.values,
+            theta=categorias,
+            fill='toself',
+            name="Promedio clínica"
+        ))
+
+        if promedio_dir is not None:
+            fig_radar.add_trace(go.Scatterpolar(
+                r=promedio_dir.values,
+                theta=categorias,
+                fill='toself',
+                name=dir_sel
+            ))
+
+        fig_radar.update_layout(
+            polar=dict(
+                radialaxis=dict(visible=True, range=[1, 5],
+                                tickvals=[1, 2, 3, 4, 5],
+                                ticktext=["No cumple", "Cumple Parcialmente", "Cumple", "Destacado", "Excepcional"])
+            ),
+            showlegend=True
+        )
+        st.plotly_chart(fig_radar, use_container_width=True)
+    else:
+        st.info("No se encontraron las competencias de liderazgo en el archivo cargado.")
+
+    # ============================
+    # Heatmap por líder
+    # ============================
+    st.subheader("🔥 Evaluación de Competencias de Liderazgo - Heatmap")
+
+    if not lideres.empty:
+        comp_cols = [c for c in competencias if c in lideres.columns]
+        lideres_num = lideres[["Evaluado"] + comp_cols].set_index("Evaluado").replace(mapa_valores)
+
+        fig, ax = plt.subplots(figsize=(10, 6))
+        sns.heatmap(lideres_num, annot=True, cmap="RdYlGn", cbar=True, ax=ax)
+        st.pyplot(fig)
+
+    # ============================
+    # Barplot comparativo
+    # ============================
+    st.subheader("📊 Promedio de Competencias de Liderazgo")
+
+    if not lideres.empty:
+        promedios_comp = lideres_num.mean().reset_index()
+        promedios_comp.columns = ["Competencia", "Promedio"]
+
+        fig_bar = px.bar(
+            promedios_comp,
+            x="Competencia", y="Promedio",
+            color="Competencia",
+            text_auto=".2f",
+            range_y=[1, 5]
+        )
+        st.plotly_chart(fig_bar, use_container_width=True)
+
+    # ============================
+    # Boxplot distribución
+    # ============================
+    st.subheader("📦 Distribución de evaluaciones en competencias de liderazgo")
+
+    if not lideres.empty:
+        df_melt = lideres.melt(id_vars=["Evaluado"], value_vars=comp_cols,
+                               var_name="Competencia", value_name="Evaluación")
+        df_melt["Evaluación"] = df_melt["Evaluación"].replace(mapa_valores)
+
+        fig_box = px.box(df_melt, x="Competencia", y="Evaluación", points="all", range_y=[1, 5])
+        st.plotly_chart(fig_box, use_container_width=True)
 
 except Exception as e:
     st.error(f"❌ Error al cargar el archivo: {e}")
