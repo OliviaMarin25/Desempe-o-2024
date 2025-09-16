@@ -44,6 +44,20 @@ try:
             "PENDIENTE": "Pendiente"
         })
 
+    # ============================
+    # Normalización de competencias de liderazgo
+    # ============================
+    mapa_competencias = {
+        "HUMILDAD": "Humildad",
+        "RESOLUTIVIDAD": "Resolutividad",
+        "FORMADOR DE": "Formador de Personas",
+        "LIDERAZGO MA": "Liderazgo Magnético",
+        "VISION ESTRAT": "Visión Estratégica",
+        "GENERACION D": "Generación de Redes y Relaciones Efectivas"
+    }
+
+    df.rename(columns=lambda c: mapa_competencias.get(c.strip().upper(), c), inplace=True)
+
     st.success(f"Datos cargados: {df.shape[0]} filas × {df.shape[1]} columnas")
 
     # ============================
@@ -145,12 +159,12 @@ try:
 
         if not lideres.empty:
             competencias = [
-                "LIDERAZGO MAGNETICO",
-                "FORMADOR DE PERSONAS",
-                "VISIÓN ESTRATÉGICA",
-                "GENERACIÓN DE REDES",
-                "HUMILDAD",
-                "RESOLUTIVIDAD"
+                "Liderazgo Magnético",
+                "Formador de Personas",
+                "Visión Estratégica",
+                "Generación de Redes y Relaciones Efectivas",
+                "Humildad",
+                "Resolutividad"
             ]
             cols_a_mostrar = ["Evaluado", "Cargo", "Evaluador", "Categoría", "Nota"] + [c for c in competencias if c in lideres.columns]
 
@@ -167,30 +181,10 @@ try:
             )
 
             # ============================
-            # Gráfico de distribución de líderes
-            # ============================
-            st.subheader("📊 Distribución de Categorías en Líderes")
-            lideres_counts = lideres["Categoría"].value_counts(normalize=True).reindex(categoria_orden, fill_value=0).reset_index()
-            lideres_counts.columns = ["Categoría", "Porcentaje"]
-            lideres_counts["Porcentaje"] *= 100
-
-            fig_lideres = px.bar(
-                lideres_counts,
-                x="Categoría", y="Porcentaje",
-                color="Categoría",
-                category_orders={"Categoría": categoria_orden},
-                color_discrete_map=categoria_colores,
-                text_auto=".1f"
-            )
-            fig_lideres.update_yaxes(title="% sobre líderes")
-            st.plotly_chart(fig_lideres, use_container_width=True)
-
-            # ============================
             # Radar Chart - Competencias de Liderazgo
             # ============================
             st.subheader("🕸️ Evaluación de Competencias de Liderazgo (Radar)")
 
-            # Mapeo de categorías a valores numéricos (sin contar "Pendiente")
             mapa_valores = {
                 "Excepcional": 5,
                 "Destacado": 4,
@@ -202,46 +196,42 @@ try:
             comp_cols = [c for c in competencias if c in lideres.columns]
 
             if comp_cols:
-                # Convertir categorías a valores numéricos y excluir "Pendiente"
                 lideres_num = lideres[comp_cols].replace(mapa_valores)
+                promedios_clinica = lideres_num.mean()
 
-                # Calcular promedios globales
-                promedios_global = lideres_num.mean()
-
-                # Selección de Dirección para comparar
+                # Comparación por dirección
                 direcciones = ["Toda la clínica"] + sorted(lideres["Dirección"].dropna().unique())
-                dir_sel = st.selectbox("Comparar Dirección específica", direcciones)
+                dir_sel = st.selectbox("Comparar dirección específica", direcciones)
 
-                if dir_sel != "Toda la clínica":
-                    lideres_dir = lideres[lideres["Dirección"] == dir_sel]
-                    lideres_dir_num = lideres_dir[comp_cols].replace(mapa_valores)
-                    promedios_dir = lideres_dir_num.mean()
+                if dir_sel == "Toda la clínica":
+                    promedios_dir = promedios_clinica
                 else:
-                    promedios_dir = None
+                    lideres_dir = lideres[lideres["Dirección"] == dir_sel]
+                    promedios_dir = lideres_dir[comp_cols].replace(mapa_valores).mean()
 
-                # Crear gráfico radar
                 fig_radar = go.Figure()
 
+                # Promedio clínica
                 fig_radar.add_trace(go.Scatterpolar(
-                    r=promedios_global.values,
-                    theta=promedios_global.index,
+                    r=promedios_clinica.values,
+                    theta=promedios_clinica.index,
                     fill='toself',
                     name="Promedio clínica"
                 ))
 
-                if promedios_dir is not None:
-                    fig_radar.add_trace(go.Scatterpolar(
-                        r=promedios_dir.values,
-                        theta=promedios_dir.index,
-                        fill='toself',
-                        name=f"Promedio {dir_sel}"
-                    ))
+                # Promedio dirección
+                fig_radar.add_trace(go.Scatterpolar(
+                    r=promedios_dir.values,
+                    theta=promedios_dir.index,
+                    fill='toself',
+                    name=f"{dir_sel}"
+                ))
 
                 fig_radar.update_layout(
                     polar=dict(
                         radialaxis=dict(
                             visible=True,
-                            range=[1, 5],
+                            range=[0, 5],
                             tickvals=[1, 2, 3, 4, 5],
                             ticktext=["No cumple", "Cumple Parcialmente", "Cumple", "Destacado", "Excepcional"]
                         )
@@ -250,25 +240,6 @@ try:
                 )
 
                 st.plotly_chart(fig_radar, use_container_width=True)
-
-                # ============================
-                # Ranking textual de fortalezas y debilidades
-                # ============================
-                if promedios_dir is not None:
-                    promedios = promedios_dir
-                    contexto = f"en {dir_sel}"
-                else:
-                    promedios = promedios_global
-                    contexto = "en toda la clínica"
-
-                mejor = promedios.idxmax()
-                peor = promedios.idxmin()
-
-                st.markdown(
-                    f"✅ La competencia más fuerte {contexto} es **{mejor}** con un promedio de {promedios[mejor]:.2f}.<br>"
-                    f"⚠️ La competencia más débil {contexto} es **{peor}** con un promedio de {promedios[peor]:.2f}.",
-                    unsafe_allow_html=True
-                )
 
             else:
                 st.info("No se encontraron las competencias de liderazgo en el archivo cargado.")
