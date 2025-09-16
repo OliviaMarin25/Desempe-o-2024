@@ -159,19 +159,6 @@ try:
     # ============================
     st.subheader("👩‍💼👨‍💼 Colaboradores con cargos de Liderazgo")
 
-    cargos_liderazgo = ["JEFE", "COORDINADOR", "SUPERVISOR", "SUBGERENTE", "GERENTE", "DIRECTOR"]
-    mask_lideres = df["Cargo"].str.upper().str.contains("|".join(cargos_liderazgo), na=False)
-    df_lideres = df[mask_lideres].copy()
-
-    if not df_lideres.empty:
-        st.dataframe(df_lideres[["Evaluado", "Cargo", "Evaluador", "Categoría", "Nota"]], use_container_width=True)
-        st.download_button("⬇️ Descargar listado de líderes (CSV)", df_lideres.to_csv(index=False).encode("utf-8"), "lideres.csv", "text/csv")
-
-    # ============================
-    # Radar de competencias de liderazgo
-    # ============================
-    st.subheader("🕸️ Evaluación de Competencias de Liderazgo (Radar)")
-
     competencias = [
         "Liderazgo Magnético",
         "Formador de Personas",
@@ -180,6 +167,20 @@ try:
         "Humildad",
         "Resolutividad"
     ]
+
+    cargos_liderazgo = ["JEFE", "COORDINADOR", "SUPERVISOR", "SUBGERENTE", "GERENTE", "DIRECTOR"]
+    mask_lideres = df["Cargo"].str.upper().str.contains("|".join(cargos_liderazgo), na=False)
+    df_lideres = df[mask_lideres].copy()
+
+    if not df_lideres.empty:
+        columnas_lideres = ["Evaluado", "Cargo", "Evaluador", "Categoría", "Nota"] + [c for c in competencias if c in df.columns]
+        st.dataframe(df_lideres[columnas_lideres], use_container_width=True)
+        st.download_button("⬇️ Descargar listado de líderes (CSV)", df_lideres[columnas_lideres].to_csv(index=False).encode("utf-8"), "lideres.csv", "text/csv")
+
+    # ============================
+    # Radar de competencias de liderazgo
+    # ============================
+    st.subheader("🕸️ Evaluación de Competencias de Liderazgo (Radar)")
 
     if all(col in df.columns for col in competencias):
         df_comp = df_lideres.copy()
@@ -197,8 +198,15 @@ try:
         else:
             promedio_dir = None
 
+        lider_sel = st.selectbox("Comparar un líder específico", ["Ninguno"] + list(df_comp["Evaluado"].dropna().unique()))
+        if lider_sel != "Ninguno":
+            datos_lider = df_comp[df_comp["Evaluado"] == lider_sel][competencias].mean()
+        else:
+            datos_lider = None
+
         fig = go.Figure()
 
+        # Promedio clínica
         fig.add_trace(go.Scatterpolar(
             r=promedio_clinica.values,
             theta=competencias,
@@ -206,12 +214,22 @@ try:
             name='Promedio clínica'
         ))
 
+        # Promedio dirección
         if promedio_dir is not None and not promedio_dir.isnull().all():
             fig.add_trace(go.Scatterpolar(
                 r=promedio_dir.values,
                 theta=competencias,
                 fill='toself',
                 name=f'{dir_sel_radar}'
+            ))
+
+        # Líder específico
+        if datos_lider is not None and not datos_lider.isnull().all():
+            fig.add_trace(go.Scatterpolar(
+                r=datos_lider.values,
+                theta=competencias,
+                fill='toself',
+                name=f'Líder: {lider_sel}'
             ))
 
         fig.update_layout(
