@@ -114,16 +114,15 @@ try:
         st.markdown("### 🔻 Top 10 Peores Evaluados")
         st.dataframe(peores[["Evaluado", "Cargo", "Evaluador", "Categoría", "Nota"]], use_container_width=True)
 
-        # Descargar Excel
-        buffer = io.BytesIO()
-        with pd.ExcelWriter(buffer, engine="xlsxwriter") as writer:
-            mejores.to_excel(writer, index=False, sheet_name="Mejores")
-            peores.to_excel(writer, index=False, sheet_name="Peores")
+        # Descargar CSV (en vez de Excel)
+        ranking = pd.concat({"Mejores": mejores, "Peores": peores})
+        buffer_csv = io.BytesIO()
+        ranking.to_csv(buffer_csv, index=False, encoding="utf-8-sig", sep=";")
         st.download_button(
-            label="📥 Descargar Ranking (Excel)",
-            data=buffer.getvalue(),
-            file_name="Ranking_Desempeno2024.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            label="📥 Descargar Ranking (CSV)",
+            data=buffer_csv.getvalue(),
+            file_name="Ranking_Desempeno2024.csv",
+            mime="text/csv"
         )
 
     # ============================
