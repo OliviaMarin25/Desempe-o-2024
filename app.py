@@ -100,15 +100,39 @@ try:
         st.plotly_chart(fig_cat, use_container_width=True)
 
     # ============================
+    # Mejores y peores evaluados
+    # ============================
+    if "Nota" in df.columns:
+        st.subheader("🏆 Mejores y Peores Evaluados")
+
+        mejores = df.sort_values("Nota", ascending=False).head(10)
+        peores = df.sort_values("Nota", ascending=True).head(10)
+
+        st.markdown("### 🔝 Top 10 Mejores Evaluados")
+        st.dataframe(mejores[["Evaluado", "Cargo", "Evaluador", "Categoría", "Nota"]], use_container_width=True)
+
+        st.markdown("### 🔻 Top 10 Peores Evaluados")
+        st.dataframe(peores[["Evaluado", "Cargo", "Evaluador", "Categoría", "Nota"]], use_container_width=True)
+
+        # Descargar Excel
+        buffer = io.BytesIO()
+        with pd.ExcelWriter(buffer, engine="xlsxwriter") as writer:
+            mejores.to_excel(writer, index=False, sheet_name="Mejores")
+            peores.to_excel(writer, index=False, sheet_name="Peores")
+        st.download_button(
+            label="📥 Descargar Ranking (Excel)",
+            data=buffer.getvalue(),
+            file_name="Ranking_Desempeno2024.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+
+    # ============================
     # Liderazgo - cargos clave
     # ============================
     st.subheader("👩‍💼👨‍💼 Colaboradores con cargos de Liderazgo")
 
-    # Normalizar columna Cargo
     if "Cargo" in df.columns:
         df["Cargo_upper"] = df["Cargo"].str.upper()
-
-        # Palabras clave (masculino y femenino)
         cargos_liderazgo = [
             "COORDINADOR", "COORDINADORA",
             "JEFE", "JEFA",
@@ -117,12 +141,9 @@ try:
             "GERENTE", "GERENTA",
             "DIRECTOR", "DIRECTORA"
         ]
-
-        # Filtrar líderes
         lideres = df[df["Cargo_upper"].str.contains("|".join(cargos_liderazgo), regex=True, na=False)]
 
         if not lideres.empty:
-            # Selección de columnas a mostrar
             competencias = [
                 "LIDERAZGO MAGNETICO",
                 "FORMADOR DE PERSONAS",
@@ -135,16 +156,35 @@ try:
 
             st.dataframe(lideres[cols_a_mostrar], use_container_width=True)
 
-            # Botón para descargar Excel
-            buffer = io.BytesIO()
-            with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
-                lideres[cols_a_mostrar].to_excel(writer, index=False, sheet_name="Liderazgo")
+            # Descargar CSV
+            buffer_csv = io.BytesIO()
+            lideres[cols_a_mostrar].to_csv(buffer_csv, index=False, encoding="utf-8-sig", sep=";")
             st.download_button(
-                label="📥 Descargar listado de líderes",
-                data=buffer.getvalue(),
-                file_name="Lideres_Desempeno2024.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                label="📥 Descargar listado de líderes (CSV)",
+                data=buffer_csv.getvalue(),
+                file_name="Lideres_Desempeno2024.csv",
+                mime="text/csv"
             )
+
+            # ============================
+            # Gráfico de distribución de líderes
+            # ============================
+            st.subheader("📊 Distribución de Categorías en Líderes")
+            lideres_counts = lideres["Categoría"].value_counts(normalize=True).reindex(categoria_orden, fill_value=0).reset_index()
+            lideres_counts.columns = ["Categoría", "Porcentaje"]
+            lideres_counts["Porcentaje"] *= 100
+
+            fig_lideres = px.bar(
+                lideres_counts,
+                x="Categoría", y="Porcentaje",
+                color="Categoría",
+                category_orders={"Categoría": categoria_orden},
+                color_discrete_map=categoria_colores,
+                text_auto=".1f"
+            )
+            fig_lideres.update_yaxes(title="% sobre líderes")
+            st.plotly_chart(fig_lideres, use_container_width=True)
+
         else:
             st.info("No se encontraron colaboradores con cargos de liderazgo en el dataset.")
 
