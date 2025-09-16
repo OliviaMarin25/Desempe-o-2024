@@ -176,10 +176,18 @@ try:
         descargar_excel(peores, "Top20_Peores.xlsx", "💾 Descargar Excel (Peores)")
 
     # ============================
-    # Tabla de líderes
+    # Tabla de líderes con competencias numéricas
     # ============================
     st.subheader("👔 Líderes y Evaluación de Competencias")
     cargos_lider = ["COORDINADOR", "JEFE", "SUPERVISOR", "SUBGERENTE", "GERENTE", "DIRECTOR"]
+
+    mapa_valores = {
+        "NO CUMPLE": 1,
+        "CUMPLE PARCIALMENTE": 2,
+        "CUMPLE": 3,
+        "DESTACADO": 4,
+        "EXCEPCIONAL": 5
+    }
 
     if "Cargo" in df.columns:
         lideres = df[df["Cargo"].str.upper().str.contains("|".join(cargos_lider), na=False)]
@@ -195,8 +203,13 @@ try:
         cols_finales = ["Evaluado","Cargo","Evaluador","Categoría","Nota"] + [c for c in comp_cols if c in df.columns]
 
         if not lideres.empty:
-            st.dataframe(lideres[cols_finales], use_container_width=True)
-            descargar_excel(lideres[cols_finales], "Lideres_Competencias.xlsx")
+            lideres_num = lideres.copy()
+            for col in comp_cols:
+                if col in lideres_num.columns:
+                    lideres_num[col] = lideres_num[col].replace(mapa_valores)
+
+            st.dataframe(lideres_num[cols_finales], use_container_width=True)
+            descargar_excel(lideres_num[cols_finales], "Lideres_Competencias.xlsx")
 
     # ============================
     # Competencias críticas
@@ -223,14 +236,6 @@ try:
     # Radar + Tabla + Barplot
     # ============================
     st.subheader("🌐 Competencias de Liderazgo (Radar y Comparaciones)")
-
-    mapa_valores = {
-        "NO CUMPLE": 1,
-        "CUMPLE PARCIALMENTE": 2,
-        "CUMPLE": 3,
-        "DESTACADO": 4,
-        "EXCEPCIONAL": 5
-    }
 
     comp_cols = [c for c in competencias if c in df.columns]
 
