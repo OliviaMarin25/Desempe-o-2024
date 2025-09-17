@@ -206,30 +206,36 @@ try:
 
         fig = go.Figure()
 
-        # Promedio clínica
+        # Promedio clínica (azul oscuro)
         fig.add_trace(go.Scatterpolar(
             r=promedio_clinica.values,
             theta=competencias,
             fill='toself',
-            name='Promedio clínica'
+            name='Promedio clínica',
+            line=dict(color="darkblue"),
+            fillcolor="rgba(0,0,139,0.4)"
         ))
 
-        # Promedio dirección
+        # Promedio dirección (verde)
         if promedio_dir is not None and not promedio_dir.isnull().all():
             fig.add_trace(go.Scatterpolar(
                 r=promedio_dir.values,
                 theta=competencias,
                 fill='toself',
-                name=f'{dir_sel_radar}'
+                name=f'{dir_sel_radar}',
+                line=dict(color="darkgreen"),
+                fillcolor="rgba(0,128,0,0.4)"
             ))
 
-        # Líder específico
+        # Líder específico (naranja)
         if datos_lider is not None and not datos_lider.isnull().all():
             fig.add_trace(go.Scatterpolar(
                 r=datos_lider.values,
                 theta=competencias,
                 fill='toself',
-                name=f'Líder: {lider_sel}'
+                name=f'Líder: {lider_sel}',
+                line=dict(color="darkorange"),
+                fillcolor="rgba(255,140,0,0.4)"
             ))
 
         fig.update_layout(
