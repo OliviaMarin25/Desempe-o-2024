@@ -249,14 +249,15 @@ try:
         st.plotly_chart(fig, use_container_width=True)
 
         # ============================
-        # Cuadro comparativo debajo del radar
+        # Cuadro comparativo (transpuesto)
         # ============================
         comparacion_data = pd.DataFrame({
-            "Competencia": competencias,
             "Promedio Clínica": promedio_clinica.values,
             f"{dir_sel_radar if dir_sel_radar != 'Ninguna' else 'Dirección'}": promedio_dir.values if promedio_dir is not None else [None]*len(competencias),
             f"Líder: {lider_sel}" if lider_sel != "Ninguno" else "Líder": datos_lider.values if datos_lider is not None else [None]*len(competencias)
-        })
+        }, index=competencias)
+
+        comparacion_data = comparacion_data.T  # Transpuesta
 
         st.markdown("### 📋 Comparación Numérica de Competencias")
         st.dataframe(comparacion_data, use_container_width=True)
