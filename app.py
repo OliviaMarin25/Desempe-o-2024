@@ -190,12 +190,12 @@ try:
         for col in competencias:
             df_comp[col] = pd.to_numeric(df_comp[col], errors="coerce").fillna(df_comp[col].map(mapping))
 
-        promedio_clinica = df_comp[competencias].mean()
+        promedio_clinica = df_comp[competencias].mean().round(2)
 
         dir_sel_radar = st.selectbox("Comparar dirección específica", ["Ninguna"] + list(df["Dirección"].dropna().unique()))
 
         if dir_sel_radar != "Ninguna":
-            promedio_dir = df_comp[df_comp["Dirección"] == dir_sel_radar][competencias].mean()
+            promedio_dir = df_comp[df_comp["Dirección"] == dir_sel_radar][competencias].mean().round(2)
             lideres_disponibles = df_comp[df_comp["Dirección"] == dir_sel_radar]["Evaluado"].dropna().unique()
         else:
             promedio_dir = None
@@ -203,7 +203,7 @@ try:
 
         lider_sel = st.selectbox("Comparar un líder específico", ["Ninguno"] + list(lideres_disponibles))
         if lider_sel != "Ninguno":
-            datos_lider = df_comp[df_comp["Evaluado"] == lider_sel][competencias].mean()
+            datos_lider = df_comp[df_comp["Evaluado"] == lider_sel][competencias].mean().round(2)
         else:
             datos_lider = None
 
@@ -249,7 +249,7 @@ try:
         st.plotly_chart(fig, use_container_width=True)
 
         # ============================
-        # Cuadro comparativo (con flechas)
+        # Cuadro comparativo (con flechas y redondeo)
         # ============================
         comparacion_data = pd.DataFrame({
             "Promedio Clínica": promedio_clinica.values,
@@ -257,7 +257,6 @@ try:
             f"Líder: {lider_sel}" if lider_sel != "Ninguno" else "Líder": datos_lider.values if datos_lider is not None else [None]*len(competencias)
         }, index=competencias)
 
-        # Agregar flechas al líder
         if datos_lider is not None and promedio_dir is not None:
             for comp in competencias:
                 if pd.notna(datos_lider[comp]) and pd.notna(promedio_dir[comp]):
@@ -268,7 +267,7 @@ try:
                     else:
                         comparacion_data.loc[comp, f"Líder: {lider_sel}"] = f"- {datos_lider[comp]:.2f}"
 
-        comparacion_data = comparacion_data.T  # Transpuesta
+        comparacion_data = comparacion_data.T
 
         st.markdown("### 📋 Comparación Numérica de Competencias")
         st.dataframe(comparacion_data, use_container_width=True)
