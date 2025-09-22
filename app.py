@@ -193,20 +193,25 @@ try:
         promedio_clinica = df_comp[competencias].mean()
 
         dir_sel_radar = st.selectbox("Comparar dirección específica", ["Ninguna"] + list(df["Dirección"].dropna().unique()))
+
         if dir_sel_radar != "Ninguna":
             promedio_dir = df_comp[df_comp["Dirección"] == dir_sel_radar][competencias].mean()
+            lideres_disponibles = df_comp[df_comp["Dirección"] == dir_sel_radar]["Evaluado"].dropna().unique()
         else:
             promedio_dir = None
+            lideres_disponibles = df_comp["Evaluado"].dropna().unique()
 
-        lider_sel = st.selectbox("Comparar un líder específico", ["Ninguno"] + list(df_comp["Evaluado"].dropna().unique()))
+        lider_sel = st.selectbox("Comparar un líder específico", ["Ninguno"] + list(lideres_disponibles))
         if lider_sel != "Ninguno":
             datos_lider = df_comp[df_comp["Evaluado"] == lider_sel][competencias].mean()
         else:
             datos_lider = None
 
+        # ============================
+        # Radar Plot
+        # ============================
         fig = go.Figure()
 
-        # Promedio clínica (azul oscuro)
         fig.add_trace(go.Scatterpolar(
             r=promedio_clinica.values,
             theta=competencias,
@@ -216,7 +221,6 @@ try:
             fillcolor="rgba(0,0,139,0.4)"
         ))
 
-        # Promedio dirección (verde)
         if promedio_dir is not None and not promedio_dir.isnull().all():
             fig.add_trace(go.Scatterpolar(
                 r=promedio_dir.values,
@@ -227,7 +231,6 @@ try:
                 fillcolor="rgba(0,128,0,0.4)"
             ))
 
-        # Líder específico (naranja)
         if datos_lider is not None and not datos_lider.isnull().all():
             fig.add_trace(go.Scatterpolar(
                 r=datos_lider.values,
@@ -244,6 +247,19 @@ try:
         )
 
         st.plotly_chart(fig, use_container_width=True)
+
+        # ============================
+        # Cuadro comparativo debajo del radar
+        # ============================
+        comparacion_data = pd.DataFrame({
+            "Competencia": competencias,
+            "Promedio Clínica": promedio_clinica.values,
+            f"{dir_sel_radar if dir_sel_radar != 'Ninguna' else 'Dirección'}": promedio_dir.values if promedio_dir is not None else [None]*len(competencias),
+            f"Líder: {lider_sel}" if lider_sel != "Ninguno" else "Líder": datos_lider.values if datos_lider is not None else [None]*len(competencias)
+        })
+
+        st.markdown("### 📋 Comparación Numérica de Competencias")
+        st.dataframe(comparacion_data, use_container_width=True)
 
     else:
         st.info("⚠️ No se encontraron todas las competencias de liderazgo en el archivo cargado.")
