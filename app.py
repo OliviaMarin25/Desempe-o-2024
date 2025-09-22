@@ -249,13 +249,24 @@ try:
         st.plotly_chart(fig, use_container_width=True)
 
         # ============================
-        # Cuadro comparativo (transpuesto)
+        # Cuadro comparativo (con flechas)
         # ============================
         comparacion_data = pd.DataFrame({
             "Promedio Clínica": promedio_clinica.values,
             f"{dir_sel_radar if dir_sel_radar != 'Ninguna' else 'Dirección'}": promedio_dir.values if promedio_dir is not None else [None]*len(competencias),
             f"Líder: {lider_sel}" if lider_sel != "Ninguno" else "Líder": datos_lider.values if datos_lider is not None else [None]*len(competencias)
         }, index=competencias)
+
+        # Agregar flechas al líder
+        if datos_lider is not None and promedio_dir is not None:
+            for comp in competencias:
+                if pd.notna(datos_lider[comp]) and pd.notna(promedio_dir[comp]):
+                    if datos_lider[comp] > promedio_dir[comp]:
+                        comparacion_data.loc[comp, f"Líder: {lider_sel}"] = f"⬆️ {datos_lider[comp]:.2f}"
+                    elif datos_lider[comp] < promedio_dir[comp]:
+                        comparacion_data.loc[comp, f"Líder: {lider_sel}"] = f"⬇️ {datos_lider[comp]:.2f}"
+                    else:
+                        comparacion_data.loc[comp, f"Líder: {lider_sel}"] = f"- {datos_lider[comp]:.2f}"
 
         comparacion_data = comparacion_data.T  # Transpuesta
 
