@@ -80,38 +80,50 @@ try:
         c4.metric("Promedio Nota", round(df["Nota"].mean(), 2))
 
     # ============================
-    # Filtros jerárquicos
+    # Filtros jerárquicos encadenados en fila
     # ============================
     st.subheader("🔎 Filtros")
 
-    direcciones = ["Todos"] + sorted(df["Dirección"].dropna().unique())
-    dir_sel = st.selectbox("Filtrar por Dirección", direcciones)
-
     df_filtrado = df.copy()
-    if dir_sel != "Todos":
-        df_filtrado = df_filtrado[df_filtrado["Dirección"] == dir_sel]
 
-    if "Área" in df_filtrado.columns:
-        areas = ["Todos"] + sorted(df_filtrado["Área"].dropna().unique())
-        area_sel = st.selectbox("Filtrar por Área", areas)
-        if area_sel != "Todos":
-            df_filtrado = df_filtrado[df_filtrado["Área"] == area_sel]
-    else:
-        area_sel = "Todos"
+    col1, col2, col3, col4 = st.columns(4)
 
-    if "Sub-área" in df_filtrado.columns:
-        subareas = ["Todos"] + sorted(df_filtrado["Sub-área"].dropna().unique())
-        sub_sel = st.selectbox("Filtrar por Sub-área", subareas)
-        if sub_sel != "Todos":
-            df_filtrado = df_filtrado[df_filtrado["Sub-área"] == sub_sel]
-    else:
-        sub_sel = "Todos"
+    # Dirección
+    with col1:
+        direcciones = ["Todos"] + sorted(df["Dirección"].dropna().unique())
+        dir_sel = st.selectbox("Dirección", direcciones)
+        if dir_sel != "Todos":
+            df_filtrado = df_filtrado[df_filtrado["Dirección"] == dir_sel]
 
-    if "Evaluador" in df.columns:
-        evaluadores = ["Todos"] + sorted(df["Evaluador"].dropna().unique())
-        eval_sel = st.selectbox("Filtrar por Evaluador", evaluadores)
-        if eval_sel != "Todos":
-            df_filtrado = df_filtrado[df_filtrado["Evaluador"] == eval_sel]
+    # Área
+    with col2:
+        if "Área" in df.columns:
+            areas = ["Todos"] + sorted(df_filtrado["Área"].dropna().unique())
+            area_sel = st.selectbox("Área", areas)
+            if area_sel != "Todos":
+                df_filtrado = df_filtrado[df_filtrado["Área"] == area_sel]
+        else:
+            area_sel = "Todos"
+
+    # Sub-área
+    with col3:
+        if "Sub-área" in df.columns:
+            subareas = ["Todos"] + sorted(df_filtrado["Sub-área"].dropna().unique())
+            sub_sel = st.selectbox("Sub-área", subareas)
+            if sub_sel != "Todos":
+                df_filtrado = df_filtrado[df_filtrado["Sub-área"] == sub_sel]
+        else:
+            sub_sel = "Todos"
+
+    # Evaluador
+    with col4:
+        if "Evaluador" in df.columns:
+            evaluadores = ["Todos"] + sorted(df_filtrado["Evaluador"].dropna().unique())
+            eval_sel = st.selectbox("Evaluador", evaluadores)
+            if eval_sel != "Todos":
+                df_filtrado = df_filtrado[df_filtrado["Evaluador"] == eval_sel]
+        else:
+            eval_sel = "Todos"
 
     st.write(f"**Registros filtrados:** {df_filtrado.shape[0]}")
 
@@ -207,9 +219,7 @@ try:
         else:
             datos_lider = None
 
-        # ============================
         # Radar Plot
-        # ============================
         fig = go.Figure()
 
         fig.add_trace(go.Scatterpolar(
@@ -249,7 +259,7 @@ try:
         st.plotly_chart(fig, use_container_width=True)
 
         # ============================
-        # Cuadro comparativo (con flechas y redondeo)
+        # Cuadro comparativo
         # ============================
         comparacion_data = pd.DataFrame({
             "Promedio Clínica": promedio_clinica.values,
