@@ -11,31 +11,26 @@ st.set_page_config(page_title="Dashboard Desempeño 2024", page_icon="📊", lay
 st.title("📊 Reporte de Desempeño - 2024")
 
 # ============================
-# Ruta al archivo en subcarpeta
-# ============================
-carpeta_datos = os.path.join(os.path.dirname(__file__), "Desempe-o-2024")
-opciones = ["Desempeño 2024.csv", "Desempeno 2024.csv"]
-
-ARCHIVO_REPO = None
-for nombre in opciones:
-    ruta = os.path.join(carpeta_datos, nombre)
-    if os.path.exists(ruta):
-        ARCHIVO_REPO = ruta
-        break
-
-if ARCHIVO_REPO is None:
-    st.error("❌ No se encontró el archivo de datos en la carpeta 'Desempe-o-2024'")
-    st.stop()
-
-# ============================
 # Carga de datos
 # ============================
-try:
-    df = pd.read_csv(ARCHIVO_REPO, sep=";", encoding="utf-8", engine="python")
-    st.sidebar.success(f"✅ Datos cargados desde {ARCHIVO_REPO}")
-    archivo_guardar = ARCHIVO_REPO
+st.sidebar.header("⚙️ Configuración de datos")
 
+archivo_subido = st.sidebar.file_uploader("Sube tu archivo CSV (separador ;)", type=["csv"])
+ARCHIVO_REPO = "Desempeño 2024.csv"
+
+try:
+    if archivo_subido is not None:
+        df = pd.read_csv(archivo_subido, sep=";", encoding="utf-8", engine="python")
+        st.sidebar.success("✅ Usando archivo cargado por el usuario (no se puede sobrescribir)")
+        archivo_guardar = ARCHIVO_REPO  # Guardaremos en el archivo del repo
+    else:
+        df = pd.read_csv(ARCHIVO_REPO, sep=";", encoding="utf-8", engine="python")
+        st.sidebar.info("ℹ️ Usando archivo por defecto del repo")
+        archivo_guardar = ARCHIVO_REPO
+
+    # ============================
     # Normalización de columnas
+    # ============================
     if "Nota" in df.columns:
         df["Nota"] = df["Nota"].astype(str).str.replace(",", ".")
         df["Nota"] = pd.to_numeric(df["Nota"], errors="coerce")
@@ -92,18 +87,21 @@ try:
         c4.metric("Promedio Nota", round(df["Nota"].mean(), 2))
 
     # ============================
-    # Filtros jerárquicos encadenados
+    # Filtros jerárquicos encadenados en fila
     # ============================
     st.subheader("🔎 Filtros")
+
     df_filtrado = df.copy()
     col1, col2, col3, col4 = st.columns(4)
 
+    # Dirección
     with col1:
         direcciones = ["Todos"] + sorted(df["Dirección"].dropna().unique())
         dir_sel = st.selectbox("Dirección", direcciones)
         if dir_sel != "Todos":
             df_filtrado = df_filtrado[df_filtrado["Dirección"] == dir_sel]
 
+    # Área
     with col2:
         if "Área" in df.columns:
             areas = ["Todos"] + sorted(df_filtrado["Área"].dropna().unique())
@@ -113,6 +111,7 @@ try:
         else:
             area_sel = "Todos"
 
+    # Sub-área
     with col3:
         if "Sub-área" in df.columns:
             subareas = ["Todos"] + sorted(df_filtrado["Sub-área"].dropna().unique())
@@ -122,6 +121,7 @@ try:
         else:
             sub_sel = "Todos"
 
+    # Evaluador
     with col4:
         if "Evaluador" in df.columns:
             evaluadores = ["Todos"] + sorted(df_filtrado["Evaluador"].dropna().unique())
@@ -134,7 +134,7 @@ try:
     st.write(f"**Registros filtrados:** {df_filtrado.shape[0]}")
 
     # ============================
-    # Distribución por Categoría
+    # Distribución por Categoría (selector Cantidad/Porcentaje)
     # ============================
     if "Categoría" in df_filtrado.columns:
         st.subheader("📊 Distribución de Categorías")
@@ -182,7 +182,7 @@ try:
         )
 
     # ============================
-    # Mejores y Peores Evaluados
+    # Mejores y peores evaluados (Top 20 + columna Acciones editable)
     # ============================
     if "Nota" in df_filtrado.columns:
         st.subheader("🏆 Mejores y Peores Evaluados")
@@ -216,11 +216,13 @@ try:
             "text/csv"
         )
 
+        # Guardar en el CSV principal si se presiona botón
         if st.button("💾 Guardar cambios en el archivo principal"):
+            # Reemplazar acciones en el dataframe original
             df.update(mejores_editados)
             df.update(peores_editados)
-            df.to_csv(ARCHIVO_REPO, sep=";", index=False, encoding="utf-8")
-            st.success(f"✅ Cambios guardados en {ARCHIVO_REPO}")
+            df.to_csv(archivo_guardar, sep=";", index=False, encoding="utf-8")
+            st.success(f"✅ Cambios guardados en {archivo_guardar}")
 
     # ============================
     # Colaboradores con cargos de liderazgo
@@ -246,7 +248,7 @@ try:
         st.download_button("⬇️ Descargar listado de líderes (CSV)", df_lideres[columnas_lideres].to_csv(index=False).encode("utf-8"), "lideres.csv", "text/csv")
 
     # ============================
-    # Radar de competencias
+    # Radar de competencias de liderazgo
     # ============================
     st.subheader("🕸️ Evaluación de Competencias de Liderazgo (Radar)")
 
@@ -275,6 +277,7 @@ try:
         else:
             datos_lider = None
 
+        # Radar Plot
         fig = go.Figure()
 
         fig.add_trace(go.Scatterpolar(
@@ -313,6 +316,9 @@ try:
 
         st.plotly_chart(fig, use_container_width=True)
 
+        # ============================
+        # Cuadro comparativo
+        # ============================
         comparacion_data = pd.DataFrame({
             "Promedio Clínica": promedio_clinica.values,
             f"{dir_sel_radar if dir_sel_radar != 'Ninguna' else 'Dirección'}": promedio_dir.values if promedio_dir is not None else [None]*len(competencias),
