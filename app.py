@@ -11,18 +11,31 @@ st.set_page_config(page_title="Dashboard Desempeño 2024", page_icon="📊", lay
 st.title("📊 Reporte de Desempeño - 2024")
 
 # ============================
-# Ruta al archivo del repo
+# Ruta al archivo en subcarpeta
 # ============================
-ARCHIVO_REPO = "Desempeño 2024.csv"
+carpeta_datos = os.path.join(os.path.dirname(__file__), "Desempe-o-2024")
+opciones = ["Desempeño 2024.csv", "Desempeno 2024.csv"]
 
+ARCHIVO_REPO = None
+for nombre in opciones:
+    ruta = os.path.join(carpeta_datos, nombre)
+    if os.path.exists(ruta):
+        ARCHIVO_REPO = ruta
+        break
+
+if ARCHIVO_REPO is None:
+    st.error("❌ No se encontró el archivo de datos en la carpeta 'Desempe-o-2024'")
+    st.stop()
+
+# ============================
+# Carga de datos
+# ============================
 try:
     df = pd.read_csv(ARCHIVO_REPO, sep=";", encoding="utf-8", engine="python")
     st.sidebar.success(f"✅ Datos cargados desde {ARCHIVO_REPO}")
     archivo_guardar = ARCHIVO_REPO
 
-    # ============================
     # Normalización de columnas
-    # ============================
     if "Nota" in df.columns:
         df["Nota"] = df["Nota"].astype(str).str.replace(",", ".")
         df["Nota"] = pd.to_numeric(df["Nota"], errors="coerce")
@@ -79,10 +92,9 @@ try:
         c4.metric("Promedio Nota", round(df["Nota"].mean(), 2))
 
     # ============================
-    # Filtros jerárquicos encadenados en fila
+    # Filtros jerárquicos encadenados
     # ============================
     st.subheader("🔎 Filtros")
-
     df_filtrado = df.copy()
     col1, col2, col3, col4 = st.columns(4)
 
@@ -122,7 +134,7 @@ try:
     st.write(f"**Registros filtrados:** {df_filtrado.shape[0]}")
 
     # ============================
-    # Distribución por Categoría (selector Cantidad/Porcentaje)
+    # Distribución por Categoría
     # ============================
     if "Categoría" in df_filtrado.columns:
         st.subheader("📊 Distribución de Categorías")
@@ -170,7 +182,7 @@ try:
         )
 
     # ============================
-    # Mejores y peores evaluados (Top 20 + columna Acciones editable)
+    # Mejores y Peores Evaluados
     # ============================
     if "Nota" in df_filtrado.columns:
         st.subheader("🏆 Mejores y Peores Evaluados")
@@ -207,8 +219,8 @@ try:
         if st.button("💾 Guardar cambios en el archivo principal"):
             df.update(mejores_editados)
             df.update(peores_editados)
-            df.to_csv(archivo_guardar, sep=";", index=False, encoding="utf-8")
-            st.success(f"✅ Cambios guardados en {archivo_guardar}")
+            df.to_csv(ARCHIVO_REPO, sep=";", index=False, encoding="utf-8")
+            st.success(f"✅ Cambios guardados en {ARCHIVO_REPO}")
 
     # ============================
     # Colaboradores con cargos de liderazgo
@@ -234,7 +246,7 @@ try:
         st.download_button("⬇️ Descargar listado de líderes (CSV)", df_lideres[columnas_lideres].to_csv(index=False).encode("utf-8"), "lideres.csv", "text/csv")
 
     # ============================
-    # Radar de competencias de liderazgo
+    # Radar de competencias
     # ============================
     st.subheader("🕸️ Evaluación de Competencias de Liderazgo (Radar)")
 
