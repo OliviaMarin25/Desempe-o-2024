@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+import os
 
 # ============================
 # Configuración de la página
@@ -10,20 +11,14 @@ st.set_page_config(page_title="Dashboard Desempeño 2024", page_icon="📊", lay
 st.title("📊 Reporte de Desempeño - 2024")
 
 # ============================
-# Carga de datos
+# Ruta al archivo del repo
 # ============================
-st.sidebar.header("⚙️ Configuración de datos")
-
-archivo_subido = st.sidebar.file_uploader("Sube tu archivo CSV (separador ;)", type=["csv"])
 ARCHIVO_REPO = "Desempeño 2024.csv"
 
 try:
-    if archivo_subido is not None:
-        df = pd.read_csv(archivo_subido, sep=";", encoding="utf-8", engine="python")
-        st.sidebar.success("✅ Usando archivo cargado por el usuario")
-    else:
-        df = pd.read_csv(ARCHIVO_REPO, sep=";", encoding="utf-8", engine="python")
-        st.sidebar.info("ℹ️ Usando archivo por defecto del repo")
+    df = pd.read_csv(ARCHIVO_REPO, sep=";", encoding="utf-8", engine="python")
+    st.sidebar.success(f"✅ Datos cargados desde {ARCHIVO_REPO}")
+    archivo_guardar = ARCHIVO_REPO
 
     # ============================
     # Normalización de columnas
@@ -42,6 +37,10 @@ try:
             "EXCEPCIONAL": "Excepcional",
             "PENDIENTE": "Pendiente"
         })
+
+    # Si no existe columna "Acciones", crearla
+    if "Acciones" not in df.columns:
+        df["Acciones"] = ""
 
     st.success(f"Datos cargados: {df.shape[0]} filas × {df.shape[1]} columnas")
 
@@ -85,17 +84,14 @@ try:
     st.subheader("🔎 Filtros")
 
     df_filtrado = df.copy()
-
     col1, col2, col3, col4 = st.columns(4)
 
-    # Dirección
     with col1:
         direcciones = ["Todos"] + sorted(df["Dirección"].dropna().unique())
         dir_sel = st.selectbox("Dirección", direcciones)
         if dir_sel != "Todos":
             df_filtrado = df_filtrado[df_filtrado["Dirección"] == dir_sel]
 
-    # Área
     with col2:
         if "Área" in df.columns:
             areas = ["Todos"] + sorted(df_filtrado["Área"].dropna().unique())
@@ -105,7 +101,6 @@ try:
         else:
             area_sel = "Todos"
 
-    # Sub-área
     with col3:
         if "Sub-área" in df.columns:
             subareas = ["Todos"] + sorted(df_filtrado["Sub-área"].dropna().unique())
@@ -115,7 +110,6 @@ try:
         else:
             sub_sel = "Todos"
 
-    # Evaluador
     with col4:
         if "Evaluador" in df.columns:
             evaluadores = ["Todos"] + sorted(df_filtrado["Evaluador"].dropna().unique())
@@ -128,43 +122,93 @@ try:
     st.write(f"**Registros filtrados:** {df_filtrado.shape[0]}")
 
     # ============================
-    # Distribución por Categoría (%)
+    # Distribución por Categoría (selector Cantidad/Porcentaje)
     # ============================
     if "Categoría" in df_filtrado.columns:
-        st.subheader("📊 Distribución de Categorías (%)")
-        cat_counts = df_filtrado["Categoría"].value_counts(normalize=True).reindex(categoria_orden, fill_value=0) * 100
-        cat_counts = cat_counts.reset_index()
-        cat_counts.columns = ["Categoría", "Porcentaje"]
+        st.subheader("📊 Distribución de Categorías")
 
-        fig_cat = px.bar(
-            cat_counts,
-            x="Categoría", y="Porcentaje",
-            color="Categoría",
-            category_orders={"Categoría": categoria_orden},
-            color_discrete_map=categoria_colores,
-            text_auto=".1f"
-        )
-        fig_cat.update_yaxes(title="Porcentaje (%)")
+        cat_counts_abs = df_filtrado["Categoría"].value_counts().reindex(categoria_orden, fill_value=0)
+        cat_counts_pct = df_filtrado["Categoría"].value_counts(normalize=True).reindex(categoria_orden, fill_value=0) * 100
+
+        cat_counts = pd.DataFrame({
+            "Categoría": categoria_orden,
+            "Cantidad": cat_counts_abs.values,
+            "Porcentaje": cat_counts_pct.values
+        })
+
+        modo_vista = st.radio("Ver gráfico por:", ["Porcentaje (%)", "Cantidad (N personas)"], horizontal=True)
+
+        if modo_vista == "Porcentaje (%)":
+            fig_cat = px.bar(
+                cat_counts,
+                x="Categoría", y="Porcentaje",
+                color="Categoría",
+                category_orders={"Categoría": categoria_orden},
+                color_discrete_map=categoria_colores,
+                text=cat_counts.apply(lambda row: f"{row['Cantidad']} ({row['Porcentaje']:.1f}%)", axis=1)
+            )
+            fig_cat.update_yaxes(title="Porcentaje (%)")
+        else:
+            fig_cat = px.bar(
+                cat_counts,
+                x="Categoría", y="Cantidad",
+                color="Categoría",
+                category_orders={"Categoría": categoria_orden},
+                color_discrete_map=categoria_colores,
+                text=cat_counts.apply(lambda row: f"{row['Cantidad']} ({row['Porcentaje']:.1f}%)", axis=1)
+            )
+            fig_cat.update_yaxes(title="Cantidad (N personas)")
+
+        fig_cat.update_traces(textposition="inside")
         st.plotly_chart(fig_cat, use_container_width=True)
 
-        st.download_button("⬇️ Descargar distribución (CSV)", cat_counts.to_csv(index=False).encode("utf-8"), "distribucion_categorias.csv", "text/csv")
+        st.download_button(
+            "⬇️ Descargar distribución (CSV)",
+            cat_counts.to_csv(index=False).encode("utf-8"),
+            "distribucion_categorias.csv",
+            "text/csv"
+        )
 
     # ============================
-    # Mejores y peores evaluados
+    # Mejores y peores evaluados (Top 20 + columna Acciones editable)
     # ============================
     if "Nota" in df_filtrado.columns:
         st.subheader("🏆 Mejores y Peores Evaluados")
 
-        mejores = df_filtrado.sort_values("Nota", ascending=False).head(10)
-        peores = df_filtrado.sort_values("Nota", ascending=True).head(20)
+        mejores = df_filtrado.sort_values("Nota", ascending=False).head(20).copy()
+        peores = df_filtrado.sort_values("Nota", ascending=True).head(20).copy()
 
-        st.markdown("### 🔝 Top 10 Mejores Evaluados")
-        st.dataframe(mejores[["Evaluado", "Cargo", "Evaluador", "Categoría", "Nota"]], use_container_width=True)
-        st.download_button("⬇️ Descargar mejores (CSV)", mejores.to_csv(index=False).encode("utf-8"), "top_mejores.csv", "text/csv")
+        st.markdown("### 🔝 Top 20 Mejores Evaluados")
+        mejores_editados = st.data_editor(
+            mejores[["Evaluado", "Cargo", "Evaluador", "Categoría", "Nota", "Acciones"]],
+            use_container_width=True,
+            num_rows="dynamic"
+        )
+        st.download_button(
+            "⬇️ Descargar mejores (CSV)",
+            mejores_editados.to_csv(index=False).encode("utf-8"),
+            "top_mejores.csv",
+            "text/csv"
+        )
 
         st.markdown("### 🔻 Top 20 Peores Evaluados")
-        st.dataframe(peores[["Evaluado", "Cargo", "Evaluador", "Categoría", "Nota"]], use_container_width=True)
-        st.download_button("⬇️ Descargar peores (CSV)", peores.to_csv(index=False).encode("utf-8"), "top_peores.csv", "text/csv")
+        peores_editados = st.data_editor(
+            peores[["Evaluado", "Cargo", "Evaluador", "Categoría", "Nota", "Acciones"]],
+            use_container_width=True,
+            num_rows="dynamic"
+        )
+        st.download_button(
+            "⬇️ Descargar peores (CSV)",
+            peores_editados.to_csv(index=False).encode("utf-8"),
+            "top_peores.csv",
+            "text/csv"
+        )
+
+        if st.button("💾 Guardar cambios en el archivo principal"):
+            df.update(mejores_editados)
+            df.update(peores_editados)
+            df.to_csv(archivo_guardar, sep=";", index=False, encoding="utf-8")
+            st.success(f"✅ Cambios guardados en {archivo_guardar}")
 
     # ============================
     # Colaboradores con cargos de liderazgo
@@ -185,7 +229,7 @@ try:
     df_lideres = df[mask_lideres].copy()
 
     if not df_lideres.empty:
-        columnas_lideres = ["Evaluado", "Cargo", "Evaluador", "Categoría", "Nota"] + [c for c in competencias if c in df.columns]
+        columnas_lideres = ["Evaluado", "Cargo", "Evaluador", "Categoría", "Nota", "Acciones"] + [c for c in competencias if c in df.columns]
         st.dataframe(df_lideres[columnas_lideres], use_container_width=True)
         st.download_button("⬇️ Descargar listado de líderes (CSV)", df_lideres[columnas_lideres].to_csv(index=False).encode("utf-8"), "lideres.csv", "text/csv")
 
@@ -219,7 +263,6 @@ try:
         else:
             datos_lider = None
 
-        # Radar Plot
         fig = go.Figure()
 
         fig.add_trace(go.Scatterpolar(
@@ -258,9 +301,6 @@ try:
 
         st.plotly_chart(fig, use_container_width=True)
 
-        # ============================
-        # Cuadro comparativo
-        # ============================
         comparacion_data = pd.DataFrame({
             "Promedio Clínica": promedio_clinica.values,
             f"{dir_sel_radar if dir_sel_radar != 'Ninguna' else 'Dirección'}": promedio_dir.values if promedio_dir is not None else [None]*len(competencias),
