@@ -11,19 +11,20 @@ st.set_page_config(page_title="Dashboard Desempeño 2024", page_icon="📊", lay
 st.title("📊 Reporte de Desempeño - 2024")
 
 # ============================
-# Ruta al archivo en la raíz
+# Ruta al archivo usando BASE_DIR
 # ============================
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 opciones = ["Desempeño 2024.csv", "Desempeno 2024.csv"]
 
 ARCHIVO_REPO = None
 for nombre in opciones:
-    ruta = os.path.join(os.path.dirname(__file__), nombre)
-    if os.path.exists(ruta):
+    ruta = os.path.join(BASE_DIR, nombre)
+    if os.path.isfile(ruta):
         ARCHIVO_REPO = ruta
         break
 
 if ARCHIVO_REPO is None:
-    st.error("❌ No se encontró el archivo de datos en la raíz del proyecto")
+    st.error(f"❌ No se encontró el archivo en la carpeta: {BASE_DIR}")
     st.stop()
 
 # ============================
@@ -313,7 +314,7 @@ try:
 
         comparacion_data = pd.DataFrame({
             "Promedio Clínica": promedio_clinica.values,
-            f"{dir_sel_radar if dir_sel_radar != "Ninguna" else "Dirección"}": promedio_dir.values if promedio_dir is not None else [None]*len(competencias),
+            f"{dir_sel_radar if dir_sel_radar != 'Ninguna' else 'Dirección'}": promedio_dir.values if promedio_dir is not None else [None]*len(competencias),
             f"Líder: {lider_sel}" if lider_sel != "Ninguno" else "Líder": datos_lider.values if datos_lider is not None else [None]*len(competencias)
         }, index=competencias)
 
