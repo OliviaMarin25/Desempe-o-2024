@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-import os
 
 # ============================
 # Configuración de la página
@@ -11,24 +10,17 @@ st.set_page_config(page_title="Dashboard Desempeño 2024", page_icon="📊", lay
 st.title("📊 Reporte de Desempeño - 2024")
 
 # ============================
-# Carga de datos desde repo
+# Carga de datos (desde uploader)
 # ============================
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-opciones = ["Desempeño 2024.csv", "Desempeno 2024.csv"]
+st.sidebar.header("⚙️ Configuración de datos")
+archivo_subido = st.sidebar.file_uploader("Sube tu archivo CSV (separador ;)", type=["csv"])
 
-ARCHIVO_REPO = None
-for nombre in opciones:
-    ruta = os.path.join(BASE_DIR, nombre)
-    if os.path.isfile(ruta):
-        ARCHIVO_REPO = ruta
-        break
-
-if ARCHIVO_REPO is None:
-    st.error(f"❌ No se encontró el archivo en la carpeta: {BASE_DIR}")
+if archivo_subido is None:
+    st.warning("📂 Por favor, sube un archivo CSV para comenzar.")
     st.stop()
 
 try:
-    df = pd.read_csv(ARCHIVO_REPO, sep=";", encoding="utf-8", engine="python")
+    df = pd.read_csv(archivo_subido, sep=";", encoding="utf-8", engine="python")
 
     # Normalización de columnas
     if "Nota" in df.columns:
@@ -89,7 +81,6 @@ try:
 
     col1, col2, col3, col4 = st.columns(4)
 
-    # Dirección
     direcciones = ["Todos"] + sorted(df["Dirección"].dropna().unique())
     with col1:
         dir_sel = st.selectbox("Filtrar por Dirección", direcciones)
@@ -98,7 +89,6 @@ try:
     if dir_sel != "Todos":
         df_filtrado = df_filtrado[df_filtrado["Dirección"] == dir_sel]
 
-    # Área
     if "Área" in df_filtrado.columns:
         areas = ["Todos"] + sorted(df_filtrado["Área"].dropna().unique())
         with col2:
@@ -108,7 +98,6 @@ try:
     else:
         area_sel = "Todos"
 
-    # Sub-área
     if "Sub-área" in df_filtrado.columns:
         subareas = ["Todos"] + sorted(df_filtrado["Sub-área"].dropna().unique())
         with col3:
@@ -118,7 +107,6 @@ try:
     else:
         sub_sel = "Todos"
 
-    # Evaluador
     if "Evaluador" in df_filtrado.columns:
         evaluadores = ["Todos"] + sorted(df_filtrado["Evaluador"].dropna().unique())
         with col4:
@@ -139,11 +127,9 @@ try:
         if modo_grafico == "Porcentaje (%)":
             cat_counts = df_filtrado["Categoría"].value_counts(normalize=True).reindex(categoria_orden, fill_value=0) * 100
             y_title = "Porcentaje (%)"
-            text_fmt = lambda x, y: f"{y:.1f}%"
         else:
             cat_counts = df_filtrado["Categoría"].value_counts().reindex(categoria_orden, fill_value=0)
             y_title = "Cantidad (N personas)"
-            text_fmt = lambda x, y: f"{int(y)}"
 
         cat_counts = cat_counts.reset_index()
         cat_counts.columns = ["Categoría", "Valor"]
@@ -161,19 +147,30 @@ try:
         st.plotly_chart(fig_cat, use_container_width=True)
 
     # ============================
-    # Mejores y peores evaluados
+    # Mejores y peores evaluados (editable)
     # ============================
     if "Nota" in df_filtrado.columns:
         st.subheader("🏆 Mejores y Peores Evaluados")
 
-        mejores = df_filtrado.sort_values("Nota", ascending=False).head(20)
-        peores = df_filtrado.sort_values("Nota", ascending=True).head(20)
+        mejores = df_filtrado.sort_values("Nota", ascending=False).head(20).copy()
+        peores = df_filtrado.sort_values("Nota", ascending=True).head(20).copy()
+
+        if "Acciones" not in mejores.columns:
+            mejores["Acciones"] = ""
+        if "Acciones" not in peores.columns:
+            peores["Acciones"] = ""
 
         st.markdown("### 🔝 Top 20 Mejores Evaluados")
-        st.dataframe(mejores[["Evaluado", "Cargo", "Evaluador", "Categoría", "Nota"]], use_container_width=True)
+        mejores_edit = st.data_editor(mejores[["Evaluado", "Cargo", "Evaluador", "Categoría", "Nota", "Acciones"]],
+                                      use_container_width=True, num_rows="dynamic")
+        st.download_button("⬇️ Descargar mejores (CSV)", mejores_edit.to_csv(index=False).encode("utf-8"),
+                           "top_mejores.csv", "text/csv")
 
         st.markdown("### 🔻 Top 20 Peores Evaluados")
-        st.dataframe(peores[["Evaluado", "Cargo", "Evaluador", "Categoría", "Nota"]], use_container_width=True)
+        peores_edit = st.data_editor(peores[["Evaluado", "Cargo", "Evaluador", "Categoría", "Nota", "Acciones"]],
+                                     use_container_width=True, num_rows="dynamic")
+        st.download_button("⬇️ Descargar peores (CSV)", peores_edit.to_csv(index=False).encode("utf-8"),
+                           "top_peores.csv", "text/csv")
 
     # ============================
     # Trabajadores con cargos de liderazgo
@@ -226,12 +223,8 @@ try:
             lider_sel = st.selectbox("Selecciona un líder", lideres_disponibles)
             datos_lider = df_comp[df_comp["Evaluado"] == lider_sel][competencias].mean().round(2)
 
-        # ============================
-        # Radar Plot
-        # ============================
         fig = go.Figure()
 
-        # Clínica
         fig.add_trace(go.Scatterpolar(
             r=promedio_clinica.values,
             theta=competencias,
@@ -241,7 +234,6 @@ try:
             fillcolor="rgba(0,0,255,0.3)"
         ))
 
-        # Dirección
         if promedio_dir is not None:
             fig.add_trace(go.Scatterpolar(
                 r=promedio_dir.values,
@@ -252,7 +244,6 @@ try:
                 fillcolor="rgba(178,34,34,0.3)"
             ))
 
-        # Líder
         if datos_lider is not None:
             fig.add_trace(go.Scatterpolar(
                 r=datos_lider.values,
