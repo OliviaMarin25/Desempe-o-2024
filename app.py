@@ -209,22 +209,19 @@ try:
 
         promedio_clinica = df_comp[competencias].mean().round(2)
 
+        # Siempre mostrar controles
         modo_radar = st.radio("Ver radar con:", ["Solo clínica", "Clínica + Dirección", "Clínica + Dirección + Líder"], horizontal=True)
+        direcciones_disp = list(df["Dirección"].dropna().unique())
+        dir_sel_radar = st.selectbox("Selecciona dirección", direcciones_disp)
+        lideres_disponibles = df_comp[df_comp["Dirección"] == dir_sel_radar]["Evaluado"].dropna().unique()
+        lider_sel = st.selectbox("Selecciona un líder", lideres_disponibles)
 
-        promedio_dir = None
-        datos_lider = None
-
-        if modo_radar in ["Clínica + Dirección", "Clínica + Dirección + Líder"]:
-            dir_sel_radar = st.selectbox("Selecciona dirección", list(df["Dirección"].dropna().unique()))
-            promedio_dir = df_comp[df_comp["Dirección"] == dir_sel_radar][competencias].mean().round(2)
-
-        if modo_radar == "Clínica + Dirección + Líder":
-            lideres_disponibles = df_comp[df_comp["Dirección"] == dir_sel_radar]["Evaluado"].dropna().unique()
-            lider_sel = st.selectbox("Selecciona un líder", lideres_disponibles)
-            datos_lider = df_comp[df_comp["Evaluado"] == lider_sel][competencias].mean().round(2)
+        promedio_dir = df_comp[df_comp["Dirección"] == dir_sel_radar][competencias].mean().round(2)
+        datos_lider = df_comp[df_comp["Evaluado"] == lider_sel][competencias].mean().round(2)
 
         fig = go.Figure()
 
+        # Clínica
         fig.add_trace(go.Scatterpolar(
             r=promedio_clinica.values,
             theta=competencias,
@@ -234,7 +231,8 @@ try:
             fillcolor="rgba(0,0,255,0.3)"
         ))
 
-        if promedio_dir is not None:
+        # Dirección
+        if modo_radar in ["Clínica + Dirección", "Clínica + Dirección + Líder"]:
             fig.add_trace(go.Scatterpolar(
                 r=promedio_dir.values,
                 theta=competencias,
@@ -244,7 +242,8 @@ try:
                 fillcolor="rgba(178,34,34,0.3)"
             ))
 
-        if datos_lider is not None:
+        # Líder
+        if modo_radar == "Clínica + Dirección + Líder":
             fig.add_trace(go.Scatterpolar(
                 r=datos_lider.values,
                 theta=competencias,
