@@ -212,12 +212,10 @@ try:
 
         promedio_clinica = df_comp[competencias].mean().round(2)
 
-        # Siempre mostrar los controles
-        modo_radar = st.radio("Ver radar con:",
-                              ["Solo clínica", "Clínica + Dirección", "Clínica + Dirección + Líder"],
-                              horizontal=True)
+        # Dropdowns siempre visibles
         direcciones_disp = list(df["Dirección"].dropna().unique())
         dir_sel_radar = st.selectbox("Selecciona dirección", direcciones_disp)
+
         lideres_disponibles = df_comp[df_comp["Dirección"] == dir_sel_radar]["Evaluado"].dropna().unique()
         lider_sel = st.selectbox("Selecciona un líder", lideres_disponibles)
 
@@ -238,26 +236,24 @@ try:
         ))
 
         # Dirección (amarillo)
-        if modo_radar in ["Clínica + Dirección", "Clínica + Dirección + Líder"]:
-            fig.add_trace(go.Scatterpolar(
-                r=promedio_dir.values,
-                theta=competencias,
-                fill='toself',
-                name=f'Dirección: {dir_sel_radar}',
-                line=dict(color="gold"),
-                fillcolor="rgba(255,215,0,0.3)"
-            ))
+        fig.add_trace(go.Scatterpolar(
+            r=promedio_dir.values,
+            theta=competencias,
+            fill='toself',
+            name=f'Dirección: {dir_sel_radar}',
+            line=dict(color="gold"),
+            fillcolor="rgba(255,215,0,0.3)"
+        ))
 
         # Líder (celeste)
-        if modo_radar == "Clínica + Dirección + Líder":
-            fig.add_trace(go.Scatterpolar(
-                r=datos_lider.values,
-                theta=competencias,
-                fill='toself',
-                name=f'Líder: {lider_sel}',
-                line=dict(color="deepskyblue"),
-                fillcolor="rgba(0,191,255,0.3)"
-            ))
+        fig.add_trace(go.Scatterpolar(
+            r=datos_lider.values,
+            theta=competencias,
+            fill='toself',
+            name=f'Líder: {lider_sel}',
+            line=dict(color="deepskyblue"),
+            fillcolor="rgba(0,191,255,0.3)"
+        ))
 
         fig.update_layout(
             polar=dict(radialaxis=dict(visible=True, range=[0, 5])),
