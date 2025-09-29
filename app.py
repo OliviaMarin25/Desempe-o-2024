@@ -3,189 +3,137 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 
-# ============================
-# Configuración de la página
-# ============================
-st.set_page_config(page_title="Dashboard Desempeño 2024", page_icon="📊", layout="wide")
+st.set_page_config(page_title="Reporte Desempeño 2024", layout="wide")
+
 st.title("📊 Reporte de Desempeño - 2024")
 
 # ============================
-# Carga de datos
+# Subida de archivo
 # ============================
-st.sidebar.header("⚙️ Configuración de datos")
+uploaded_file = st.file_uploader("📂 Sube el archivo CSV de desempeño", type=["csv"])
 
-archivo_subido = st.sidebar.file_uploader("Sube tu archivo CSV (separador ;)", type=["csv"])
-if archivo_subido is None:
-    st.error("❌ Por favor, sube un archivo CSV para continuar.")
-    st.stop()
-
-try:
-    df = pd.read_csv(archivo_subido, sep=";", encoding="utf-8", engine="python")
-
-    # ============================
-    # Normalización de columnas
-    # ============================
-    if "Nota" in df.columns:
-        df["Nota"] = df["Nota"].astype(str).str.replace(",", ".")
-        df["Nota"] = pd.to_numeric(df["Nota"], errors="coerce")
-
-    if "Categoría" in df.columns:
-        df["Categoría"] = df["Categoría"].str.strip().str.upper()
-        df["Categoría"] = df["Categoría"].replace({
-            "NO CUMPLE": "No cumple",
-            "CUMPLE PARCIALMENTE": "Cumple Parcialmente",
-            "CUMPLE": "Cumple",
-            "DESTACADO": "Destacado",
-            "EXCEPCIONAL": "Excepcional",
-            "PENDIENTE": "Pendiente"
-        })
-
-    st.success(f"✅ Datos cargados: {df.shape[0]} filas × {df.shape[1]} columnas")
+if uploaded_file is not None:
+    try:
+        df = pd.read_csv(uploaded_file, sep=";", encoding="utf-8")
+    except Exception as e:
+        st.error(f"Error al cargar el archivo: {e}")
+        st.stop()
 
     # ============================
-    # Paleta de colores y orden
-    # ============================
-    categoria_colores = {
-        "Excepcional": "violet",
-        "Destacado": "skyblue",
-        "Cumple": "green",
-        "Cumple Parcialmente": "gold",
-        "No cumple": "red",
-        "Pendiente": "lightgrey"
-    }
-
-    categoria_orden = [
-        "Excepcional",
-        "Destacado",
-        "Cumple",
-        "Cumple Parcialmente",
-        "No cumple",
-        "Pendiente"
-    ]
-
-    # ============================
-    # KPIs
-    # ============================
-    st.subheader("📌 Indicadores Generales")
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Total registros", len(df))
-    if "Dirección" in df.columns:
-        c2.metric("Direcciones", df["Dirección"].nunique())
-    if "Área" in df.columns:
-        c3.metric("Áreas", df["Área"].nunique())
-    if "Nota" in df.columns:
-        c4.metric("Promedio Nota", round(df["Nota"].mean(), 2))
-
-    # ============================
-    # Filtros jerárquicos
+    # Filtros en fila
     # ============================
     st.subheader("🔎 Filtros")
 
     col1, col2, col3, col4 = st.columns(4)
 
-    direcciones = ["Todos"] + sorted(df["Dirección"].dropna().unique())
     with col1:
-        dir_sel = st.selectbox("Filtrar por Dirección", direcciones)
+        direcciones = ["Todas"] + sorted(df["Dirección"].dropna().unique())
+        direccion_sel = st.selectbox("Dirección", direcciones)
 
-    df_filtrado = df.copy()
-    if dir_sel != "Todos":
-        df_filtrado = df_filtrado[df_filtrado["Dirección"] == dir_sel]
-
-    if "Área" in df_filtrado.columns:
-        areas = ["Todos"] + sorted(df_filtrado["Área"].dropna().unique())
-        with col2:
-            area_sel = st.selectbox("Filtrar por Área", areas)
-        if area_sel != "Todos":
-            df_filtrado = df_filtrado[df_filtrado["Área"] == area_sel]
-    else:
-        area_sel = "Todos"
-
-    if "Sub-área" in df_filtrado.columns:
-        subareas = ["Todos"] + sorted(df_filtrado["Sub-área"].dropna().unique())
-        with col3:
-            sub_sel = st.selectbox("Filtrar por Sub-área", subareas)
-        if sub_sel != "Todos":
-            df_filtrado = df_filtrado[df_filtrado["Sub-área"] == sub_sel]
-    else:
-        sub_sel = "Todos"
-
-    if "Evaluador" in df_filtrado.columns:
-        evaluadores = ["Todos"] + sorted(df_filtrado["Evaluador"].dropna().unique())
-        with col4:
-            eval_sel = st.selectbox("Filtrar por Evaluador", evaluadores)
-        if eval_sel != "Todos":
-            df_filtrado = df_filtrado[df_filtrado["Evaluador"] == eval_sel]
-
-    st.write(f"**Registros filtrados:** {df_filtrado.shape[0]}")
-
-    # ============================
-    # Distribución por Categoría
-    # ============================
-    if "Categoría" in df_filtrado.columns:
-        st.subheader("📊 Distribución de Categorías")
-        modo_graf = st.radio("Ver gráfico por:", ["Porcentaje (%)", "Cantidad (N personas)"], horizontal=True)
-
-        cat_counts = df_filtrado["Categoría"].value_counts().reindex(categoria_orden, fill_value=0)
-        if modo_graf == "Porcentaje (%)":
-            cat_counts = (cat_counts / cat_counts.sum()) * 100
-            y_label = "Porcentaje (%)"
+    with col2:
+        if direccion_sel != "Todas":
+            areas = ["Todas"] + sorted(df[df["Dirección"] == direccion_sel]["Área"].dropna().unique())
         else:
-            y_label = "Cantidad (N personas)"
+            areas = ["Todas"] + sorted(df["Área"].dropna().unique())
+        area_sel = st.selectbox("Área", areas)
 
-        cat_counts = cat_counts.reset_index()
-        cat_counts.columns = ["Categoría", "Valor"]
+    with col3:
+        if area_sel != "Todas" and direccion_sel != "Todas":
+            subareas = ["Todas"] + sorted(df[(df["Dirección"] == direccion_sel) & (df["Área"] == area_sel)]["Sub-área"].dropna().unique())
+        elif direccion_sel != "Todas":
+            subareas = ["Todas"] + sorted(df[df["Dirección"] == direccion_sel]["Sub-área"].dropna().unique())
+        else:
+            subareas = ["Todas"] + sorted(df["Sub-área"].dropna().unique())
+        subarea_sel = st.selectbox("Sub-área", subareas)
 
-        fig_cat = px.bar(
-            cat_counts,
-            x="Categoría", y="Valor",
-            color="Categoría",
-            category_orders={"Categoría": categoria_orden},
-            color_discrete_map=categoria_colores,
-            text_auto=".1f" if modo_graf == "Porcentaje (%)" else True
-        )
-        fig_cat.update_yaxes(title=y_label)
-        st.plotly_chart(fig_cat, use_container_width=True)
+    with col4:
+        if subarea_sel != "Todas":
+            evaluadores = ["Todos"] + sorted(df[df["Sub-área"] == subarea_sel]["Evaluador"].dropna().unique())
+        elif area_sel != "Todas":
+            evaluadores = ["Todos"] + sorted(df[df["Área"] == area_sel]["Evaluador"].dropna().unique())
+        elif direccion_sel != "Todas":
+            evaluadores = ["Todos"] + sorted(df[df["Dirección"] == direccion_sel]["Evaluador"].dropna().unique())
+        else:
+            evaluadores = ["Todos"] + sorted(df["Evaluador"].dropna().unique())
+        evaluador_sel = st.selectbox("Evaluador", evaluadores)
 
-    # ============================
-    # Mejores y Peores Evaluados
-    # ============================
-    if "Nota" in df_filtrado.columns:
-        st.subheader("🏆 Mejores y Peores Evaluados")
-
-        mejores = df_filtrado.sort_values("Nota", ascending=False).head(20).copy()
-        peores = df_filtrado.sort_values("Nota", ascending=True).head(20).copy()
-
-        if "Acciones" not in mejores.columns:
-            mejores["Acciones"] = ""
-        if "Acciones" not in peores.columns:
-            peores["Acciones"] = ""
-
-        st.markdown("### 🔝 Top 20 Mejores Evaluados")
-        mejores_edit = st.data_editor(mejores[["Evaluado", "Cargo", "Evaluador", "Categoría", "Nota", "Acciones"]],
-                                      use_container_width=True, num_rows="dynamic")
-        st.download_button("⬇️ Descargar mejores (CSV)",
-                           mejores_edit.to_csv(index=False).encode("utf-8"),
-                           "top_mejores.csv", "text/csv")
-
-        st.markdown("### 🔻 Top 20 Peores Evaluados")
-        peores_edit = st.data_editor(peores[["Evaluado", "Cargo", "Evaluador", "Categoría", "Nota", "Acciones"]],
-                                     use_container_width=True, num_rows="dynamic")
-        st.download_button("⬇️ Descargar peores (CSV)",
-                           peores_edit.to_csv(index=False).encode("utf-8"),
-                           "top_peores.csv", "text/csv")
+    # Aplicar filtros
+    df_filtered = df.copy()
+    if direccion_sel != "Todas":
+        df_filtered = df_filtered[df_filtered["Dirección"] == direccion_sel]
+    if area_sel != "Todas":
+        df_filtered = df_filtered[df_filtered["Área"] == area_sel]
+    if subarea_sel != "Todas":
+        df_filtered = df_filtered[df_filtered["Sub-área"] == subarea_sel]
+    if evaluador_sel != "Todos":
+        df_filtered = df_filtered[df_filtered["Evaluador"] == evaluador_sel]
 
     # ============================
-    # Trabajadores con cargos de liderazgo
+    # Distribución de Categorías
+    # ============================
+    st.subheader("📊 Distribución de Categorías")
+
+    modo = st.radio("Ver gráfico por:", ["Porcentaje (%)", "Cantidad (N personas)"], horizontal=True)
+
+    dist = df_filtered["Categoría"].value_counts().reset_index()
+    dist.columns = ["Categoría", "Cantidad"]
+    dist["Porcentaje"] = (dist["Cantidad"] / dist["Cantidad"].sum()) * 100
+
+    colores = {
+        "Excepcional": "violet",
+        "Destacado": "skyblue",
+        "Cumple": "green",
+        "Cumple Parcialmente": "yellow",
+        "No cumple": "red",
+        "Pendiente": "lightgray"
+    }
+
+    if modo == "Porcentaje (%)":
+        fig = px.bar(dist, x="Categoría", y="Porcentaje", text=dist["Porcentaje"].round(1).astype(str) + "%",
+                     color="Categoría", color_discrete_map=colores)
+        fig.update_yaxes(title="Porcentaje (%)")
+    else:
+        fig = px.bar(dist, x="Categoría", y="Cantidad", text=dist["Cantidad"],
+                     color="Categoría", color_discrete_map=colores)
+        fig.update_yaxes(title="Cantidad de personas")
+
+    st.plotly_chart(fig, use_container_width=True)
+
+    # ============================
+    # Mejores y peores evaluados
+    # ============================
+    st.subheader("🏆 Mejores y Peores Evaluados")
+
+    mejores = df_filtered.sort_values("Nota", ascending=False).head(20).copy()
+    peores = df_filtered.sort_values("Nota", ascending=True).head(20).copy()
+
+    # Columna editable "Acciones"
+    for dataset in [mejores, peores]:
+        if "Acciones" not in dataset.columns:
+            dataset["Acciones"] = ""
+
+    tab1, tab2 = st.tabs(["✨ Top 20 Mejores", "⚠️ Top 20 Peores"])
+
+    with tab1:
+        st.data_editor(mejores, num_rows="dynamic", use_container_width=True)
+        st.download_button("⬇️ Descargar mejores (CSV)", data=mejores.to_csv(index=False).encode("utf-8"), file_name="mejores.csv", mime="text/csv")
+
+    with tab2:
+        st.data_editor(peores, num_rows="dynamic", use_container_width=True)
+        st.download_button("⬇️ Descargar peores (CSV)", data=peores.to_csv(index=False).encode("utf-8"), file_name="peores.csv", mime="text/csv")
+
+    # ============================
+    # Trabajadores con cargos de liderazgo + Ranking
     # ============================
     st.subheader("👩‍💼👨‍💼 Trabajadores con cargos de Liderazgo")
 
     competencias = [
+        "Humildad",
+        "Resolutividad",
         "Liderazgo Magnético",
-        "Formador de Personas",
         "Visión Estratégica",
         "Generación de Redes y Relaciones Efectivas",
-        "Humildad",
-        "Resolutividad"
+        "Formador de Personas"
     ]
 
     cargos_liderazgo = ["JEFE", "COORDINADOR", "SUPERVISOR", "SUBGERENTE", "GERENTE", "DIRECTOR"]
@@ -193,8 +141,15 @@ try:
     df_lideres = df[mask_lideres].copy()
 
     if not df_lideres.empty:
-        columnas_lideres = ["Evaluado", "Cargo", "Evaluador", "Categoría", "Nota"] + \
-                           [c for c in competencias if c in df.columns]
+        # Crear columna con promedio de las 6 competencias
+        df_lideres["Promedio Competencias Liderazgo"] = df_lideres[competencias].mean(axis=1, numeric_only=True)
+
+        # Ordenar y asignar ranking
+        df_lideres = df_lideres.sort_values("Promedio Competencias Liderazgo", ascending=False)
+        df_lideres["Ranking"] = range(1, len(df_lideres) + 1)
+
+        # Mostrar tabla ordenada
+        columnas_lideres = ["Ranking", "Evaluado", "Cargo", "Evaluador", "Categoría", "Nota", "Promedio Competencias Liderazgo"] + competencias
         st.dataframe(df_lideres[columnas_lideres], use_container_width=True)
 
     # ============================
@@ -212,27 +167,23 @@ try:
 
         promedio_clinica = df_comp[competencias].mean().round(2)
 
-        # Dropdowns con "Ninguna/Ninguno"
+        # Dropdowns con opción "Ninguna"
         direcciones_disp = ["Ninguna"] + list(df["Dirección"].dropna().unique())
         dir_sel_radar = st.selectbox("Selecciona dirección", direcciones_disp)
 
         if dir_sel_radar != "Ninguna":
-            lideres_disponibles = ["Ninguno"] + list(
-                df_comp[df_comp["Dirección"] == dir_sel_radar]["Evaluado"].dropna().unique()
-            )
+            lideres_disponibles = ["Ninguno"] + list(df_comp[df_comp["Dirección"] == dir_sel_radar]["Evaluado"].dropna().unique())
         else:
             lideres_disponibles = ["Ninguno"]
 
         lider_sel = st.selectbox("Selecciona un líder", lideres_disponibles)
 
-        # Calcular valores
         promedio_dir, datos_lider = None, None
         if dir_sel_radar != "Ninguna":
             promedio_dir = df_comp[df_comp["Dirección"] == dir_sel_radar][competencias].mean().round(2)
         if lider_sel != "Ninguno":
             datos_lider = df_comp[df_comp["Evaluado"] == lider_sel][competencias].mean().round(2)
 
-        # Radar Plot
         fig = go.Figure()
 
         # Clínica (azul oscuro)
@@ -274,5 +225,5 @@ try:
 
         st.plotly_chart(fig, use_container_width=True)
 
-except Exception as e:
-    st.error(f"❌ Error al cargar el archivo: {e}")
+else:
+    st.info("📂 Sube un archivo CSV para comenzar.")
