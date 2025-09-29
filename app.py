@@ -148,8 +148,8 @@ if uploaded_file is not None:
         df_lideres = df_lideres.sort_values("Promedio Competencias Liderazgo", ascending=False)
         df_lideres["Ranking"] = range(1, len(df_lideres) + 1)
 
-        # Mostrar tabla ordenada
-        columnas_lideres = ["Ranking", "Evaluado", "Cargo", "Evaluador", "Categoría", "Nota", "Promedio Competencias Liderazgo"] + competencias
+        # Mostrar tabla igual que antes, pero con ranking y promedio
+        columnas_lideres = ["Ranking", "Evaluado", "Cargo", "Evaluador", "Categoría", "Nota", "Promedio Competencias Liderazgo"]
         st.dataframe(df_lideres[columnas_lideres], use_container_width=True)
 
     # ============================
