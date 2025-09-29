@@ -164,7 +164,7 @@ if uploaded_file is not None:
     df_liderazgo["Promedio Liderazgo"] = df_liderazgo[competencias].mean(axis=1)
     df_liderazgo = df_liderazgo.sort_values("Promedio Liderazgo", ascending=False)
 
-    st.dataframe(df_liderazgo[["Evaluado", "Cargo", "Evaluador", "Categoría", "Nota", "Promedio Liderazgo"] + competencias],
+    st.dataframe(df_liderazgo[["Evaluado", "Cargo", "Evaluador", "Categoría", "Nota", "Promedio Liderazgo"]],
                  use_container_width=True)
 
     # ============================
@@ -175,8 +175,16 @@ if uploaded_file is not None:
     col1, col2 = st.columns(2)
     with col1:
         direccion_radar = st.selectbox("Selecciona dirección", ["Ninguna"] + sorted(df["Dirección"].dropna().unique()))
+
+    # Filtrar líderes según dirección
+    if direccion_radar != "Ninguna":
+        lideres_filtrados = df_liderazgo[df_liderazgo["Dirección"] == direccion_radar]["Evaluado"].dropna().unique()
+        lideres_opciones = ["Ninguno"] + sorted(lideres_filtrados)
+    else:
+        lideres_opciones = ["Ninguno"] + sorted(df_liderazgo["Evaluado"].dropna().unique())
+
     with col2:
-        lider_radar = st.selectbox("Selecciona un líder", ["Ninguno"] + sorted(df_liderazgo["Evaluado"].dropna().unique()))
+        lider_radar = st.selectbox("Selecciona un líder", lideres_opciones)
 
     # Calcular promedios
     promedio_clinica = df[competencias].apply(pd.to_numeric, errors="coerce").mean()
