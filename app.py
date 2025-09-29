@@ -69,16 +69,23 @@ if uploaded_file is not None:
         df_filtered = df_filtered[df_filtered["Evaluador"] == evaluador_sel]
 
     # ============================
-    # Distribución de Categorías
+    # Distribución de Categorías (con orden fijo)
     # ============================
     st.subheader("📊 Distribución de Categorías")
 
     modo = st.radio("Ver gráfico por:", ["Porcentaje (%)", "Cantidad (N personas)"], horizontal=True)
 
-    dist = df_filtered["Categoría"].value_counts().reset_index()
-    dist.columns = ["Categoría", "Cantidad"]
-    dist["Porcentaje"] = (dist["Cantidad"] / dist["Cantidad"].sum()) * 100
+    # Definir orden correcto
+    categoria_orden = [
+        "Excepcional",
+        "Destacado",
+        "Cumple",
+        "Cumple Parcialmente",
+        "No cumple",
+        "Pendiente"
+    ]
 
+    # Colores consistentes
     colores = {
         "Excepcional": "violet",
         "Destacado": "skyblue",
@@ -88,13 +95,26 @@ if uploaded_file is not None:
         "Pendiente": "lightgray"
     }
 
+    # Contar categorías respetando el orden
+    dist = df_filtered["Categoría"].value_counts().reindex(categoria_orden, fill_value=0).reset_index()
+    dist.columns = ["Categoría", "Cantidad"]
+    dist["Porcentaje"] = (dist["Cantidad"] / dist["Cantidad"].sum()) * 100
+
     if modo == "Porcentaje (%)":
-        fig = px.bar(dist, x="Categoría", y="Porcentaje", text=dist["Porcentaje"].round(1).astype(str) + "%",
-                     color="Categoría", color_discrete_map=colores)
+        fig = px.bar(
+            dist, x="Categoría", y="Porcentaje",
+            text=dist["Porcentaje"].round(1).astype(str) + "%",
+            color="Categoría", color_discrete_map=colores,
+            category_orders={"Categoría": categoria_orden}
+        )
         fig.update_yaxes(title="Porcentaje (%)")
     else:
-        fig = px.bar(dist, x="Categoría", y="Cantidad", text=dist["Cantidad"],
-                     color="Categoría", color_discrete_map=colores)
+        fig = px.bar(
+            dist, x="Categoría", y="Cantidad",
+            text=dist["Cantidad"],
+            color="Categoría", color_discrete_map=colores,
+            category_orders={"Categoría": categoria_orden}
+        )
         fig.update_yaxes(title="Cantidad de personas")
 
     st.plotly_chart(fig, use_container_width=True)
@@ -104,23 +124,26 @@ if uploaded_file is not None:
     # ============================
     st.subheader("🏆 Mejores y Peores Evaluados")
 
-    mejores = df_filtered.sort_values("Nota", ascending=False).head(20).copy()
-    peores = df_filtered.sort_values("Nota", ascending=True).head(20).copy()
+    mejores = df_filtered.sort_values("Nota", ascending=False).head(20)
+    peores = df_filtered.sort_values("Nota", ascending=True).head(20)
 
-    # Columna editable "Acciones"
-    for dataset in [mejores, peores]:
-        if "Acciones" not in dataset.columns:
-            dataset["Acciones"] = ""
+    st.markdown("### 🔝 Top 20 Mejores Evaluados")
+    st.dataframe(mejores[["Evaluado", "Cargo", "Evaluador", "Categoría", "Nota"]], use_container_width=True)
+    st.download_button(
+        "⬇️ Descargar mejores (CSV)",
+        mejores[["Evaluado", "Cargo", "Evaluador", "Categoría", "Nota"]].to_csv(index=False).encode("utf-8"),
+        "top_mejores.csv",
+        "text/csv"
+    )
 
-    tab1, tab2 = st.tabs(["✨ Top 20 Mejores", "⚠️ Top 20 Peores"])
-
-    with tab1:
-        st.data_editor(mejores, num_rows="dynamic", use_container_width=True)
-        st.download_button("⬇️ Descargar mejores (CSV)", data=mejores.to_csv(index=False).encode("utf-8"), file_name="mejores.csv", mime="text/csv")
-
-    with tab2:
-        st.data_editor(peores, num_rows="dynamic", use_container_width=True)
-        st.download_button("⬇️ Descargar peores (CSV)", data=peores.to_csv(index=False).encode("utf-8"), file_name="peores.csv", mime="text/csv")
+    st.markdown("### 🔻 Top 20 Peores Evaluados")
+    st.dataframe(peores[["Evaluado", "Cargo", "Evaluador", "Categoría", "Nota"]], use_container_width=True)
+    st.download_button(
+        "⬇️ Descargar peores (CSV)",
+        peores[["Evaluado", "Cargo", "Evaluador", "Categoría", "Nota"]].to_csv(index=False).encode("utf-8"),
+        "top_peores.csv",
+        "text/csv"
+    )
 
     # ============================
     # Trabajadores con cargos de liderazgo + Ranking
@@ -148,7 +171,7 @@ if uploaded_file is not None:
         df_lideres = df_lideres.sort_values("Promedio Competencias Liderazgo", ascending=False)
         df_lideres["Ranking"] = range(1, len(df_lideres) + 1)
 
-        # Mostrar tabla igual que antes, pero con ranking y promedio
+        # Mostrar tabla con ranking
         columnas_lideres = ["Ranking", "Evaluado", "Cargo", "Evaluador", "Categoría", "Nota", "Promedio Competencias Liderazgo"]
         st.dataframe(df_lideres[columnas_lideres], use_container_width=True)
 
