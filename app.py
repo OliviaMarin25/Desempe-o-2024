@@ -4,7 +4,6 @@ import plotly.express as px
 import plotly.graph_objects as go
 
 st.set_page_config(page_title="Reporte Desempeño 2024", layout="wide")
-
 st.title("📊 Reporte de Desempeño - 2024")
 
 # ============================
@@ -39,7 +38,9 @@ if uploaded_file is not None:
 
     with col3:
         if area_sel != "Todas" and direccion_sel != "Todas":
-            subareas = ["Todas"] + sorted(df[(df["Dirección"] == direccion_sel) & (df["Área"] == area_sel)]["Sub-área"].dropna().unique())
+            subareas = ["Todas"] + sorted(
+                df[(df["Dirección"] == direccion_sel) & (df["Área"] == area_sel)]["Sub-área"].dropna().unique()
+            )
         elif direccion_sel != "Todas":
             subareas = ["Todas"] + sorted(df[df["Dirección"] == direccion_sel]["Sub-área"].dropna().unique())
         else:
@@ -69,7 +70,7 @@ if uploaded_file is not None:
         df_filtered = df_filtered[df_filtered["Evaluador"] == evaluador_sel]
 
     # ============================
-    # Distribución de Categorías (orden fijo)
+    # Distribución de Categorías (con orden fijo)
     # ============================
     st.subheader("📊 Distribución de Categorías")
 
@@ -117,10 +118,11 @@ if uploaded_file is not None:
     st.plotly_chart(fig, use_container_width=True)
 
     # ============================
-    # Mejores y Peores evaluados
+    # Mejores y peores evaluados
     # ============================
     st.subheader("🏆 Mejores y Peores Evaluados")
 
+    # Convertir Nota a numérico
     df_filtered["Nota_num"] = pd.to_numeric(df_filtered["Nota"], errors="coerce")
     df_valid = df_filtered.dropna(subset=["Nota_num"])
 
@@ -129,99 +131,110 @@ if uploaded_file is not None:
 
     st.markdown("### 🔝 Top 20 Mejores Evaluados")
     st.dataframe(mejores[["Evaluado", "Cargo", "Evaluador", "Categoría", "Nota"]], use_container_width=True)
-    st.download_button(
-        "⬇️ Descargar mejores (CSV)",
-        mejores[["Evaluado", "Cargo", "Evaluador", "Categoría", "Nota"]].to_csv(index=False).encode("utf-8"),
-        "top_mejores.csv",
-        "text/csv"
-    )
 
     st.markdown("### 🔻 Top 20 Peores Evaluados")
     st.dataframe(peores[["Evaluado", "Cargo", "Evaluador", "Categoría", "Nota"]], use_container_width=True)
-    st.download_button(
-        "⬇️ Descargar peores (CSV)",
-        peores[["Evaluado", "Cargo", "Evaluador", "Categoría", "Nota"]].to_csv(index=False).encode("utf-8"),
-        "top_peores.csv",
-        "text/csv"
-    )
 
     # ============================
-    # Trabajadores con cargos de liderazgo
+    # Trabajadores con cargos de Liderazgo
     # ============================
-    st.subheader("🧑‍💼👩‍💼 Trabajadores con cargos de Liderazgo")
+    st.subheader("👩‍💼👨‍💼 Trabajadores con cargos de Liderazgo")
 
-    liderazgo_keywords = ["Jefe", "Subgerente", "Coordinador", "Director", "Líder", "Supervisor", "Encargado"]
-    df_liderazgo = df_filtered[df_filtered["Cargo"].str.contains("|".join(liderazgo_keywords), case=False, na=False)].copy()
+    competencias = [
+        "Humildad",
+        "Resolutividad",
+        "Formador de Personas",
+        "Liderazgo Magnético",
+        "Visión Estratégica",
+        "Generación de Redes y Relaciones Efectivas"
+    ]
 
-    # Promedio de competencias de liderazgo
-    competencias = ["Humildad", "Resolutividad", "Formador de Personas",
-                    "Liderazgo Magnético", "Visión Estratégica",
-                    "Generación de Redes y Relaciones Efectivas"]
+    cargos_liderazgo = ["JEFE", "COORDINADOR", "SUPERVISOR", "SUBGERENTE", "GERENTE", "DIRECTOR"]
+    mask_lideres = df["Cargo"].str.upper().str.contains("|".join(cargos_liderazgo), na=False)
+    df_lideres = df[mask_lideres].copy()
 
-    for c in competencias:
-        df_liderazgo[c] = pd.to_numeric(df_liderazgo[c], errors="coerce")
-
-    df_liderazgo["Promedio Liderazgo"] = df_liderazgo[competencias].mean(axis=1)
-    df_liderazgo = df_liderazgo.sort_values("Promedio Liderazgo", ascending=False)
-
-    st.dataframe(df_liderazgo[["Evaluado", "Cargo", "Evaluador", "Categoría", "Nota", "Promedio Liderazgo"]],
-                 use_container_width=True)
+    if not df_lideres.empty:
+        columnas_lideres = ["Evaluado", "Cargo", "Evaluador", "Categoría", "Nota"] + [c for c in competencias if c in df.columns]
+        st.dataframe(df_lideres[columnas_lideres], use_container_width=True)
 
     # ============================
-    # Radar de Competencias
+    # Radar de competencias de liderazgo
     # ============================
     st.subheader("🌟 Evaluación de Competencias de Liderazgo (Radar)")
 
-    col1, col2 = st.columns(2)
-    with col1:
-        direccion_radar = st.selectbox("Selecciona dirección", ["Ninguna"] + sorted(df["Dirección"].dropna().unique()))
+    if all(col in df.columns for col in competencias):
+        df_comp = df_lideres.copy()
+        df_comp = df_comp[df_comp["Categoría"] != "Pendiente"]
 
-    # Filtrar líderes según dirección
-    if direccion_radar != "Ninguna":
-        lideres_filtrados = df_liderazgo[df_liderazgo["Dirección"] == direccion_radar]["Evaluado"].dropna().unique()
-        lideres_opciones = ["Ninguno"] + sorted(lideres_filtrados)
-    else:
-        lideres_opciones = ["Ninguno"] + sorted(df_liderazgo["Evaluado"].dropna().unique())
+        mapping = {"No cumple": 1, "Cumple Parcialmente": 2, "Cumple": 3, "Destacado": 4, "Excepcional": 5}
+        for col in competencias:
+            df_comp[col] = pd.to_numeric(df_comp[col], errors="coerce").fillna(df_comp[col].map(mapping))
 
-    with col2:
-        lider_radar = st.selectbox("Selecciona un líder", lideres_opciones)
+        promedio_clinica = df_comp[competencias].mean().round(2)
 
-    # Calcular promedios
-    promedio_clinica = df[competencias].apply(pd.to_numeric, errors="coerce").mean()
+        col1, col2 = st.columns(2)
+        with col1:
+            dir_sel_radar = st.selectbox("Selecciona dirección", ["Ninguna"] + list(df["Dirección"].dropna().unique()))
+        with col2:
+            if dir_sel_radar != "Ninguna":
+                lideres_disponibles = df_comp[df_comp["Dirección"] == dir_sel_radar]["Evaluado"].dropna().unique()
+            else:
+                lideres_disponibles = df_comp["Evaluado"].dropna().unique()
+            lider_sel = st.selectbox("Selecciona un líder", ["Ninguno"] + list(lideres_disponibles))
 
-    fig_radar = go.Figure()
+        if dir_sel_radar != "Ninguna":
+            promedio_dir = df_comp[df_comp["Dirección"] == dir_sel_radar][competencias].mean().round(2)
+        else:
+            promedio_dir = None
 
-    # Promedio clínica
-    fig_radar.add_trace(go.Scatterpolar(
-        r=promedio_clinica.values,
-        theta=competencias,
-        fill='toself',
-        name="Promedio clínica",
-        line_color="blue"
-    ))
+        if lider_sel != "Ninguno":
+            datos_lider = df_comp[df_comp["Evaluado"] == lider_sel][competencias].mean().round(2)
+        else:
+            datos_lider = None
 
-    if direccion_radar != "Ninguna":
-        promedio_dir = df[df["Dirección"] == direccion_radar][competencias].apply(pd.to_numeric, errors="coerce").mean()
-        fig_radar.add_trace(go.Scatterpolar(
-            r=promedio_dir.values,
-            theta=competencias,
-            fill='toself',
-            name=f"Dirección: {direccion_radar}",
-            line_color="yellow"
-        ))
+        fig = go.Figure()
+        fig.add_trace(go.Scatterpolar(r=promedio_clinica.values, theta=competencias, fill='toself',
+                                      name='Promedio clínica', line=dict(color="blue"), fillcolor="rgba(0,0,255,0.3)"))
 
-    if lider_radar != "Ninguno":
-        datos_lider = df_liderazgo[df_liderazgo["Evaluado"] == lider_radar][competencias].apply(pd.to_numeric, errors="coerce").mean()
-        fig_radar.add_trace(go.Scatterpolar(
-            r=datos_lider.values,
-            theta=competencias,
-            fill='toself',
-            name=f"Líder: {lider_radar}",
-            line_color="skyblue"
-        ))
+        if promedio_dir is not None and not promedio_dir.isnull().all():
+            fig.add_trace(go.Scatterpolar(r=promedio_dir.values, theta=competencias, fill='toself',
+                                          name=f'Dirección: {dir_sel_radar}', line=dict(color="yellow"), fillcolor="rgba(255,255,0,0.3)"))
 
-    fig_radar.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0, 5])))
-    st.plotly_chart(fig_radar, use_container_width=True)
+        if datos_lider is not None and not datos_lider.isnull().all():
+            fig.add_trace(go.Scatterpolar(r=datos_lider.values, theta=competencias, fill='toself',
+                                          name=f'Líder: {lider_sel}', line=dict(color="skyblue"), fillcolor="rgba(135,206,250,0.3)"))
+
+        fig.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0, 5])), showlegend=True)
+        st.plotly_chart(fig, use_container_width=True)
+
+    # ============================
+    # Ranking de Líderes por Tendencia de Evaluación
+    # ============================
+    st.subheader("📈 Ranking de Líderes por Tendencia de Evaluación")
+
+    df["Nota_num"] = pd.to_numeric(df["Nota"], errors="coerce")
+    ranking_lideres = (
+        df.groupby("Evaluador")["Nota_num"]
+        .mean()
+        .reset_index()
+        .sort_values("Nota_num", ascending=False)
+    )
+    ranking_lideres.columns = ["Líder (Evaluador)", "Promedio de Evaluación"]
+
+    st.dataframe(ranking_lideres, use_container_width=True)
+
+    fig_rank = px.bar(
+        ranking_lideres,
+        x="Promedio de Evaluación",
+        y="Líder (Evaluador)",
+        orientation="h",
+        text=ranking_lideres["Promedio de Evaluación"].round(2),
+        title="Comparación de líderes según promedio de evaluación",
+        color="Promedio de Evaluación",
+        color_continuous_scale="Blues"
+    )
+    fig_rank.update_layout(yaxis=dict(autorange="reversed"))
+    st.plotly_chart(fig_rank, use_container_width=True)
 
 else:
     st.info("📂 Sube un archivo CSV para comenzar.")
