@@ -212,15 +212,25 @@ try:
 
         promedio_clinica = df_comp[competencias].mean().round(2)
 
-        # Dropdowns siempre visibles
-        direcciones_disp = list(df["Dirección"].dropna().unique())
+        # Dropdowns con "Ninguna/Ninguno"
+        direcciones_disp = ["Ninguna"] + list(df["Dirección"].dropna().unique())
         dir_sel_radar = st.selectbox("Selecciona dirección", direcciones_disp)
 
-        lideres_disponibles = df_comp[df_comp["Dirección"] == dir_sel_radar]["Evaluado"].dropna().unique()
+        if dir_sel_radar != "Ninguna":
+            lideres_disponibles = ["Ninguno"] + list(
+                df_comp[df_comp["Dirección"] == dir_sel_radar]["Evaluado"].dropna().unique()
+            )
+        else:
+            lideres_disponibles = ["Ninguno"]
+
         lider_sel = st.selectbox("Selecciona un líder", lideres_disponibles)
 
-        promedio_dir = df_comp[df_comp["Dirección"] == dir_sel_radar][competencias].mean().round(2)
-        datos_lider = df_comp[df_comp["Evaluado"] == lider_sel][competencias].mean().round(2)
+        # Calcular valores
+        promedio_dir, datos_lider = None, None
+        if dir_sel_radar != "Ninguna":
+            promedio_dir = df_comp[df_comp["Dirección"] == dir_sel_radar][competencias].mean().round(2)
+        if lider_sel != "Ninguno":
+            datos_lider = df_comp[df_comp["Evaluado"] == lider_sel][competencias].mean().round(2)
 
         # Radar Plot
         fig = go.Figure()
@@ -236,24 +246,26 @@ try:
         ))
 
         # Dirección (amarillo)
-        fig.add_trace(go.Scatterpolar(
-            r=promedio_dir.values,
-            theta=competencias,
-            fill='toself',
-            name=f'Dirección: {dir_sel_radar}',
-            line=dict(color="gold"),
-            fillcolor="rgba(255,215,0,0.3)"
-        ))
+        if promedio_dir is not None and not promedio_dir.isnull().all():
+            fig.add_trace(go.Scatterpolar(
+                r=promedio_dir.values,
+                theta=competencias,
+                fill='toself',
+                name=f'Dirección: {dir_sel_radar}',
+                line=dict(color="gold"),
+                fillcolor="rgba(255,215,0,0.3)"
+            ))
 
         # Líder (celeste)
-        fig.add_trace(go.Scatterpolar(
-            r=datos_lider.values,
-            theta=competencias,
-            fill='toself',
-            name=f'Líder: {lider_sel}',
-            line=dict(color="deepskyblue"),
-            fillcolor="rgba(0,191,255,0.3)"
-        ))
+        if datos_lider is not None and not datos_lider.isnull().all():
+            fig.add_trace(go.Scatterpolar(
+                r=datos_lider.values,
+                theta=competencias,
+                fill='toself',
+                name=f'Líder: {lider_sel}',
+                line=dict(color="deepskyblue"),
+                fillcolor="rgba(0,191,255,0.3)"
+            ))
 
         fig.update_layout(
             polar=dict(radialaxis=dict(visible=True, range=[0, 5])),
