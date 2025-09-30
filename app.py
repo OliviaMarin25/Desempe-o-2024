@@ -90,14 +90,7 @@ if uploaded_file is not None:
     edited_top_altas = st.data_editor(
         top_altas,
         use_container_width=True,
-        num_rows="dynamic",
-        column_config={
-            "Acciones": st.column_config.TextColumn(
-                "Acciones",
-                help="Escribe aquí las acciones a tomar",
-                placeholder="Escribe aquí..."
-            )
-        }
+        num_rows="dynamic"
     )
     st.download_button(
         "⬇️ Descargar evaluaciones más altas (CSV)",
@@ -114,14 +107,7 @@ if uploaded_file is not None:
     edited_top_bajas = st.data_editor(
         top_bajas,
         use_container_width=True,
-        num_rows="dynamic",
-        column_config={
-            "Acciones": st.column_config.TextColumn(
-                "Acciones",
-                help="Escribe aquí las acciones a tomar",
-                placeholder="Escribe aquí..."
-            )
-        }
+        num_rows="dynamic"
     )
     st.download_button(
         "⬇️ Descargar evaluaciones más bajas (CSV)",
