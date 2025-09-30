@@ -78,20 +78,57 @@ if uploaded_file is not None:
     st.plotly_chart(fig_cat, use_container_width=True)
 
     # ============================
-    # 2. Mejores y Peores Evaluados
+    # 2. Evaluaciones más altas y más bajas
     # ============================
-    st.subheader("🏆 Mejores y Peores Evaluados")
+    st.subheader("🏆 Evaluaciones Destacadas")
 
-    top_mejores = df.nlargest(10, "Nota_num")[["Evaluado", "Cargo", "Evaluador", "Categoría", "Nota"]]
-    top_peores = df.nsmallest(20, "Nota_num")[["Evaluado", "Cargo", "Evaluador", "Categoría", "Nota"]]
+    # 20 más altas
+    top_altas = df.nlargest(20, "Nota_num")[["Evaluado", "Cargo", "Evaluador", "Categoría", "Nota"]].copy()
+    top_altas["Acciones"] = ""  # columna editable
 
-    st.markdown("### ⬆️ Top 10 Mejores Evaluados")
-    st.dataframe(top_mejores, use_container_width=True)
-    st.download_button("⬇️ Descargar mejores (CSV)", top_mejores.to_csv(index=False).encode("utf-8"), "mejores.csv", "text/csv")
+    st.markdown("### ⬆️ 20 evaluaciones más altas")
+    edited_top_altas = st.data_editor(
+        top_altas,
+        use_container_width=True,
+        num_rows="dynamic",
+        column_config={
+            "Acciones": st.column_config.TextColumn(
+                "Acciones",
+                help="Escribe aquí las acciones a tomar",
+                placeholder="Escribe aquí..."
+            )
+        }
+    )
+    st.download_button(
+        "⬇️ Descargar evaluaciones más altas (CSV)",
+        edited_top_altas.to_csv(index=False).encode("utf-8"),
+        "evaluaciones_mas_altas.csv",
+        "text/csv"
+    )
 
-    st.markdown("### ⬇️ Top 20 Peores Evaluados")
-    st.dataframe(top_peores, use_container_width=True)
-    st.download_button("⬇️ Descargar peores (CSV)", top_peores.to_csv(index=False).encode("utf-8"), "peores.csv", "text/csv")
+    # 20 más bajas
+    top_bajas = df.nsmallest(20, "Nota_num")[["Evaluado", "Cargo", "Evaluador", "Categoría", "Nota"]].copy()
+    top_bajas["Acciones"] = ""  # columna editable
+
+    st.markdown("### ⬇️ 20 evaluaciones más bajas")
+    edited_top_bajas = st.data_editor(
+        top_bajas,
+        use_container_width=True,
+        num_rows="dynamic",
+        column_config={
+            "Acciones": st.column_config.TextColumn(
+                "Acciones",
+                help="Escribe aquí las acciones a tomar",
+                placeholder="Escribe aquí..."
+            )
+        }
+    )
+    st.download_button(
+        "⬇️ Descargar evaluaciones más bajas (CSV)",
+        edited_top_bajas.to_csv(index=False).encode("utf-8"),
+        "evaluaciones_mas_bajas.csv",
+        "text/csv"
+    )
 
     # ============================
     # 3. Trabajadores con cargos de Liderazgo
@@ -130,15 +167,15 @@ if uploaded_file is not None:
             lideres_filtrados = lideres
         seleccion_lider = st.selectbox("Selecciona un líder", lideres_filtrados, index=0)
 
-    promedio_clinica = df[competencias].apply(pd.to_numeric, errors="coerce").mean()
+    promedio_clinica = df[competencias].apply(pd.to_numeric, errors="coerce").mean().round(2)
 
     if seleccion_direccion != "Ninguna":
-        promedio_direccion = df[df["Dirección"] == seleccion_direccion][competencias].apply(pd.to_numeric, errors="coerce").mean()
+        promedio_direccion = df[df["Dirección"] == seleccion_direccion][competencias].apply(pd.to_numeric, errors="coerce").mean().round(2)
     else:
         promedio_direccion = None
 
     if seleccion_lider != "Ninguno":
-        promedio_lider = df[df["Evaluador"] == seleccion_lider][competencias].apply(pd.to_numeric, errors="coerce").mean()
+        promedio_lider = df[df["Evaluador"] == seleccion_lider][competencias].apply(pd.to_numeric, errors="coerce").mean().round(2)
     else:
         promedio_lider = None
 
@@ -169,6 +206,7 @@ if uploaded_file is not None:
         .reset_index()
         .sort_values("Promedio_Evaluacion", ascending=False)
     )
+    ranking_lideres["Promedio_Evaluacion"] = ranking_lideres["Promedio_Evaluacion"].round(2)
 
     st.dataframe(ranking_lideres.rename(columns={
         "Evaluador": "Líder (Evaluador)",
