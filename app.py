@@ -29,7 +29,6 @@ if uploaded_file is not None:
 
     columnas_base = ["Evaluado", "Cargo", "Dirección", "Área", "Sub-área", "Evaluador"]
 
-    # Confirmar columnas de notas y categorías históricas
     nota_cols = [c for c in df.columns if "Nota" in c]
     cat_cols = [c for c in df.columns if "Categoría" in c]
 
@@ -38,7 +37,7 @@ if uploaded_file is not None:
     df["Categoría"] = df["Categoría 2024"]
     df["Nota_num"] = pd.to_numeric(df["Nota"], errors="coerce")
 
-    # Normalizar categorías (asegurar nombres consistentes)
+    # Normalización de categorías
     def normalizar_categoria(cat):
         if pd.isna(cat):
             return "Pendiente"
@@ -155,30 +154,39 @@ if uploaded_file is not None:
     # ============================
     st.header("📌 Sección 2: Liderazgo")
 
-    # Convertir competencias a numéricas siempre
-    df[competencias] = df[competencias].apply(pd.to_numeric, errors="coerce")
-
-    # Ranking líderes por Nota 2024 recibida
+    # Ranking líderes: datos cuando ellos son Evaluados
     st.subheader("📈 Ranking de Líderes (Nota 2024 recibida)")
-    ranking = (df.groupby("Evaluador")
-                 .agg(Nota2024=("Nota_num", "mean"),
-                      **{c: (c, "mean") for c in competencias})
-                 .reset_index())
 
-    # Redondear
-    for c in ["Nota2024"] + competencias:
-        ranking[c] = ranking[c].round(2)
+    ranking_eval = df[df["Cargo"].str.contains("Jefe|Subgerente|Coordinador|Director|Supervisor",
+                                               case=False, na=False)].copy()
+    ranking_eval[competencias] = ranking_eval[competencias].apply(pd.to_numeric, errors="coerce")
+    ranking_eval["Nota2024"] = pd.to_numeric(ranking_eval["Nota 2024"], errors="coerce")
 
-    # Promedio competencias
+    ranking = ranking_eval.groupby("Evaluado").agg(
+        Nota2024=("Nota2024", "mean"),
+        **{c: (c, "mean") for c in competencias}
+    ).reset_index()
+
     ranking["Promedio Competencias"] = ranking[competencias].mean(axis=1).round(2)
-
-    # Ordenar y asignar posición
     ranking = ranking.sort_values("Nota2024", ascending=False).reset_index(drop=True)
     ranking["Ranking"] = ranking.index + 1
 
-    # Mostrar tabla
-    st.dataframe(ranking[["Ranking", "Evaluador", "Nota2024"] + competencias + ["Promedio Competencias"]],
+    st.dataframe(ranking[["Ranking", "Evaluado", "Nota2024"] + competencias + ["Promedio Competencias"]],
                  use_container_width=True)
+
+    # 📊 Gráfico de barras del ranking
+    fig_rank = px.bar(
+        ranking,
+        x="Evaluado",
+        y="Nota2024",
+        color="Nota2024",
+        text="Nota2024",
+        title="Ranking de Líderes - Nota 2024 recibida",
+        color_continuous_scale="Blues"
+    )
+    fig_rank.update_traces(texttemplate="%{text:.2f}", textposition="outside")
+    fig_rank.update_layout(xaxis_title="Líder", yaxis_title="Nota 2024", xaxis_tickangle=-45)
+    st.plotly_chart(fig_rank, use_container_width=True)
 
     # Radar comparativo
     st.subheader("🕸️ Radar de Competencias (Comparación)")
@@ -194,9 +202,9 @@ if uploaded_file is not None:
             lideres_filtrados = lideres
         seleccion_lider = st.selectbox("Selecciona líder", lideres_filtrados, index=0)
 
-    promedio_clinica = df[competencias].mean().round(2)
-    promedio_direccion = df[df["Dirección"] == seleccion_direccion][competencias].mean().round(2) if seleccion_direccion != "Ninguna" else None
-    promedio_lider = df[df["Evaluador"] == seleccion_lider][competencias].mean().round(2) if seleccion_lider != "Ninguno" else None
+    promedio_clinica = df[competencias].apply(pd.to_numeric, errors="coerce").mean().round(2)
+    promedio_direccion = df[df["Dirección"] == seleccion_direccion][competencias].apply(pd.to_numeric, errors="coerce").mean().round(2) if seleccion_direccion != "Ninguna" else None
+    promedio_lider = df[df["Evaluador"] == seleccion_lider][competencias].apply(pd.to_numeric, errors="coerce").mean().round(2) if seleccion_lider != "Ninguno" else None
 
     fig_radar = go.Figure()
     fig_radar.add_trace(go.Scatterpolar(r=promedio_clinica, theta=competencias, fill="toself", name="Clínica", line=dict(color="darkblue")))
@@ -207,7 +215,7 @@ if uploaded_file is not None:
     fig_radar.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0, 5])), showlegend=True)
     st.plotly_chart(fig_radar, use_container_width=True)
 
-    # Tendencia de evaluación (evaluador a su equipo)
+    # Tendencia de evaluación (líder → equipo)
     st.subheader("📊 Tendencia de Evaluación (líder → equipo)")
     tendencia = (df.groupby("Evaluador")
                    .agg(Promedio_Entregado=("Nota_num", "mean"),
@@ -225,7 +233,6 @@ if uploaded_file is not None:
     # ============================
     st.header("📌 Sección 3: Desempeño Histórico")
 
-    # Tabla notas + categorías históricas
     st.subheader("📋 Notas y Categorías Históricas")
     historico_cols = []
     for year in ["2022", "2023", "2024"]:
@@ -260,7 +267,6 @@ if uploaded_file is not None:
                            title=f"Evolución global de {trabajador}", range_y=[0, 5])
         st.plotly_chart(fig_hist, use_container_width=True)
 
-        # Competencias históricas
         comp_hist = [c for c in df.columns if any(comp in c for comp in competencias)]
         if comp_hist:
             st.subheader("🕸️ Evolución de Competencias por Año")
