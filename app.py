@@ -38,13 +38,35 @@ if uploaded_file is not None:
     df["Categoría"] = df["Categoría 2024"]
     df["Nota_num"] = pd.to_numeric(df["Nota"], errors="coerce")
 
+    # Normalizar categorías (asegurar nombres consistentes)
+    def normalizar_categoria(cat):
+        if pd.isna(cat):
+            return "Pendiente"
+        c = str(cat).strip().lower()
+        if "excepcional" in c:
+            return "Excepcional"
+        if "destacado" in c:
+            return "Destacado"
+        if "cumple parcialmente" in c:
+            return "Cumple Parcialmente"
+        if c == "cumple":
+            return "Cumple"
+        if "no cumple" in c:
+            return "No Cumple"
+        if "pendiente" in c:
+            return "Pendiente"
+        return cat
+
+    for col in cat_cols:
+        df[col] = df[col].apply(normalizar_categoria)
+
     # Colores de categorías
     colores = {
         "Excepcional": "violet",
         "Destacado": "skyblue",
         "Cumple": "green",
         "Cumple Parcialmente": "yellow",
-        "No cumple": "red",
+        "No Cumple": "red",
         "Pendiente": "lightgrey"
     }
 
@@ -76,7 +98,7 @@ if uploaded_file is not None:
     # Distribución de categorías
     st.subheader("📊 Distribución de Categorías 2024")
     conteo_categorias = df_filtrado["Categoría 2024"].value_counts().reindex(
-        ["Excepcional", "Destacado", "Cumple", "Cumple Parcialmente", "No cumple", "Pendiente"],
+        ["Excepcional", "Destacado", "Cumple", "Cumple Parcialmente", "No Cumple", "Pendiente"],
         fill_value=0
     ).reset_index()
     conteo_categorias.columns = ["Categoría", "Cantidad"]
@@ -133,20 +155,28 @@ if uploaded_file is not None:
     # ============================
     st.header("📌 Sección 2: Liderazgo")
 
+    # Convertir competencias a numéricas siempre
+    df[competencias] = df[competencias].apply(pd.to_numeric, errors="coerce")
+
     # Ranking líderes por Nota 2024 recibida
     st.subheader("📈 Ranking de Líderes (Nota 2024 recibida)")
     ranking = (df.groupby("Evaluador")
-                 .agg(Nota2024=("Nota_num", "mean"))
-                 .reset_index()
-                 .sort_values("Nota2024", ascending=False))
-    ranking["Ranking"] = range(1, len(ranking) + 1)
+                 .agg(Nota2024=("Nota_num", "mean"),
+                      **{c: (c, "mean") for c in competencias})
+                 .reset_index())
 
-    # Agregar competencias
-    comp_cols = [c for c in df.columns if c in competencias]
-    lideres_comp = df.groupby("Evaluador")[comp_cols].mean().reset_index().round(2)
-    ranking = ranking.merge(lideres_comp, on="Evaluador", how="left")
+    # Redondear
+    for c in ["Nota2024"] + competencias:
+        ranking[c] = ranking[c].round(2)
+
+    # Promedio competencias
     ranking["Promedio Competencias"] = ranking[competencias].mean(axis=1).round(2)
 
+    # Ordenar y asignar posición
+    ranking = ranking.sort_values("Nota2024", ascending=False).reset_index(drop=True)
+    ranking["Ranking"] = ranking.index + 1
+
+    # Mostrar tabla
     st.dataframe(ranking[["Ranking", "Evaluador", "Nota2024"] + competencias + ["Promedio Competencias"]],
                  use_container_width=True)
 
@@ -164,9 +194,9 @@ if uploaded_file is not None:
             lideres_filtrados = lideres
         seleccion_lider = st.selectbox("Selecciona líder", lideres_filtrados, index=0)
 
-    promedio_clinica = df[competencias].apply(pd.to_numeric, errors="coerce").mean().round(2)
-    promedio_direccion = df[df["Dirección"] == seleccion_direccion][competencias].apply(pd.to_numeric, errors="coerce").mean().round(2) if seleccion_direccion != "Ninguna" else None
-    promedio_lider = df[df["Evaluador"] == seleccion_lider][competencias].apply(pd.to_numeric, errors="coerce").mean().round(2) if seleccion_lider != "Ninguno" else None
+    promedio_clinica = df[competencias].mean().round(2)
+    promedio_direccion = df[df["Dirección"] == seleccion_direccion][competencias].mean().round(2) if seleccion_direccion != "Ninguna" else None
+    promedio_lider = df[df["Evaluador"] == seleccion_lider][competencias].mean().round(2) if seleccion_lider != "Ninguno" else None
 
     fig_radar = go.Figure()
     fig_radar.add_trace(go.Scatterpolar(r=promedio_clinica, theta=competencias, fill="toself", name="Clínica", line=dict(color="darkblue")))
@@ -212,8 +242,8 @@ if uploaded_file is not None:
 
     # Trayectorias descendentes
     st.subheader("⚠️ Trayectorias descendentes (≥2 años bajos, 2024 bajo)")
-    peores = df[df["Categoría 2024"].isin(["No cumple", "Cumple Parcialmente"])].copy()
-    peores["Bajo_count"] = (df[[c for c in cat_cols if "Categoría" in c]].isin(["No cumple", "Cumple Parcialmente"]).sum(axis=1))
+    peores = df[df["Categoría 2024"].isin(["No Cumple", "Cumple Parcialmente"])].copy()
+    peores["Bajo_count"] = (df[[c for c in cat_cols if "Categoría" in c]].isin(["No Cumple", "Cumple Parcialmente"]).sum(axis=1))
     peores = peores[peores["Bajo_count"] >= 2]
     st.dataframe(peores[["Evaluado"] + historico_cols], use_container_width=True)
 
