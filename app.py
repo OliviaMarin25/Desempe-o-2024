@@ -3,193 +3,223 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 
-# =========================
-# Configuración inicial
-# =========================
-st.set_page_config(page_title="Reporte de Desempeño 2024", layout="wide")
+st.set_page_config(page_title="Reporte de Desempeño - 2024", layout="wide")
 
 st.title("📊 Reporte de Desempeño - 2024")
-st.sidebar.header("Carga de datos")
 
-# Cargar archivo
-uploaded_file = st.sidebar.file_uploader("Sube el archivo CSV con los datos", type=["csv"])
-if uploaded_file:
-    df = pd.read_csv(uploaded_file)
+# ============================
+# Subir archivo CSV
+# ============================
+uploaded_file = st.file_uploader("📂 Sube el archivo CSV con los datos", type=["csv"])
 
-    # Normalizar nombres de columnas
+if uploaded_file is not None:
+    # Intentar distintas configuraciones de lectura
+    try:
+        df = pd.read_csv(uploaded_file, sep=";", encoding="utf-8", engine="python")
+    except:
+        try:
+            df = pd.read_csv(uploaded_file, sep=",", encoding="latin-1", engine="python")
+        except:
+            df = pd.read_csv(uploaded_file, sep="\t", encoding="utf-8", engine="python")
+
+    # Normalizar columnas
     df.columns = df.columns.str.strip()
 
-    # =========================
-    # Dropdowns de filtros
-    # =========================
+    # ============================
+    # Filtros dinámicos
+    # ============================
     st.sidebar.header("Filtros")
     direcciones = ["Todas"] + sorted(df["Dirección"].dropna().unique().tolist())
     areas = ["Todas"] + sorted(df["Área"].dropna().unique().tolist())
     subareas = ["Todas"] + sorted(df["Sub-área"].dropna().unique().tolist())
 
-    filtro_dir = st.sidebar.selectbox("Dirección", direcciones)
-    filtro_area = st.sidebar.selectbox("Área", areas)
-    filtro_subarea = st.sidebar.selectbox("Sub-área", subareas)
+    seleccion_direccion = st.sidebar.selectbox("Dirección", direcciones, index=0)
+    seleccion_area = st.sidebar.selectbox("Área", areas, index=0)
+    seleccion_subarea = st.sidebar.selectbox("Sub-área", subareas, index=0)
 
     df_filtrado = df.copy()
-    if filtro_dir != "Todas":
-        df_filtrado = df_filtrado[df_filtrado["Dirección"] == filtro_dir]
-    if filtro_area != "Todas":
-        df_filtrado = df_filtrado[df_filtrado["Área"] == filtro_area]
-    if filtro_subarea != "Todas":
-        df_filtrado = df_filtrado[df_filtrado["Sub-área"] == filtro_subarea]
+    if seleccion_direccion != "Todas":
+        df_filtrado = df_filtrado[df_filtrado["Dirección"] == seleccion_direccion]
+    if seleccion_area != "Todas":
+        df_filtrado = df_filtrado[df_filtrado["Área"] == seleccion_area]
+    if seleccion_subarea != "Todas":
+        df_filtrado = df_filtrado[df_filtrado["Sub-área"] == seleccion_subarea]
 
-    # =========================
+    # ============================
     # Sección 1: Resultados 2024
-    # =========================
+    # ============================
     st.header("📌 Resultados 2024")
 
-    if "Nota 2024" in df_filtrado.columns:
-        df_filtrado["Nota_num"] = pd.to_numeric(df_filtrado["Nota 2024"], errors="coerce")
+    df_2024 = df_filtrado.copy()
+    df_2024["Nota_num"] = pd.to_numeric(df_2024["Nota 2024"], errors="coerce")
 
-        # Distribución
-        tipo_vista = st.radio("Visualizar resultados por:", ["Cantidad", "Porcentaje"], horizontal=True)
-        dist = df_filtrado["Categoría 2024"].value_counts().reset_index()
-        dist.columns = ["Categoría", "Cantidad"]
+    conteo_categorias = df_2024["Categoría 2024"].value_counts().reindex(
+        ["Excepcional", "Destacado", "Cumple", "Cumple Parcialmente", "No cumple", "Pendiente"],
+        fill_value=0
+    ).reset_index()
+    conteo_categorias.columns = ["Categoría", "Cantidad"]
+    total = conteo_categorias["Cantidad"].sum()
+    conteo_categorias["Porcentaje"] = (conteo_categorias["Cantidad"] / total * 100).round(1)
 
-        colores = {
-            "Excepcional": "darkgreen",
-            "Destacado": "limegreen",
-            "Cumple": "royalblue",
-            "Cumple Parcial": "orange",
-            "No Cumple": "red"
-        }
+    opcion_grafico = st.radio("Ver gráfico por:", ["Porcentaje (%)", "Cantidad (N personas)"], horizontal=True)
 
-        if tipo_vista == "Porcentaje":
-            dist["Porcentaje"] = (dist["Cantidad"] / dist["Cantidad"].sum()) * 100
-            fig = px.bar(dist, x="Categoría", y="Porcentaje", color="Categoría",
-                         color_discrete_map=colores, text=dist["Porcentaje"].round(1).astype(str) + "%")
-        else:
-            fig = px.bar(dist, x="Categoría", y="Cantidad", color="Categoría",
-                         color_discrete_map=colores, text=dist["Cantidad"])
+    colores = {
+        "Excepcional": "violet",
+        "Destacado": "skyblue",
+        "Cumple": "green",
+        "Cumple Parcialmente": "yellow",
+        "No cumple": "red",
+        "Pendiente": "lightgrey"
+    }
 
-        st.plotly_chart(fig, use_container_width=True)
+    if opcion_grafico == "Porcentaje (%)":
+        fig_cat = px.bar(
+            conteo_categorias,
+            x="Categoría", y="Porcentaje", color="Categoría",
+            text=conteo_categorias["Porcentaje"].astype(str) + "%",
+            color_discrete_map=colores
+        )
+        fig_cat.update_layout(yaxis_title="Porcentaje (%)")
+    else:
+        fig_cat = px.bar(
+            conteo_categorias,
+            x="Categoría", y="Cantidad", color="Categoría",
+            text=conteo_categorias["Cantidad"].astype(str),
+            color_discrete_map=colores
+        )
+        fig_cat.update_layout(yaxis_title="Cantidad de personas")
 
-        # Top / Bottom 20 con filtros adicionales
-        st.subheader("🏆 Evaluaciones Destacadas")
-        filtro_dir_tb = st.selectbox("Filtrar Dirección (Top/Bottom 20)", ["Todas"] + sorted(df["Dirección"].dropna().unique().tolist()))
-        df_tb = df_filtrado.copy()
-        if filtro_dir_tb != "Todas":
-            df_tb = df_tb[df_tb["Dirección"] == filtro_dir_tb]
+    st.plotly_chart(fig_cat, use_container_width=True)
 
-        top20 = df_tb.nlargest(20, "Nota_num")
-        low20 = df_tb.nsmallest(20, "Nota_num")
+    # Top 20 y Bottom 20 filtrables
+    st.subheader("🏆 Evaluaciones Destacadas")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        filtro_dir_tb = st.selectbox("Dirección (Top/Bottom)", ["Todas"] + sorted(df["Dirección"].dropna().unique()), index=0)
+    with col2:
+        filtro_area_tb = st.selectbox("Área (Top/Bottom)", ["Todas"] + sorted(df["Área"].dropna().unique()), index=0)
+    with col3:
+        filtro_sub_tb = st.selectbox("Sub-área (Top/Bottom)", ["Todas"] + sorted(df["Sub-área"].dropna().unique()), index=0)
 
-        st.markdown("⬆️ **20 evaluaciones más altas**")
-        st.dataframe(top20[["Evaluado", "Cargo", "Dirección", "Área", "Sub-área", "Nota 2024", "Categoría 2024"]])
+    df_tb = df_2024.copy()
+    if filtro_dir_tb != "Todas":
+        df_tb = df_tb[df_tb["Dirección"] == filtro_dir_tb]
+    if filtro_area_tb != "Todas":
+        df_tb = df_tb[df_tb["Área"] == filtro_area_tb]
+    if filtro_sub_tb != "Todas":
+        df_tb = df_tb[df_tb["Sub-área"] == filtro_sub_tb]
 
-        st.markdown("⬇️ **20 evaluaciones más bajas**")
-        st.dataframe(low20[["Evaluado", "Cargo", "Dirección", "Área", "Sub-área", "Nota 2024", "Categoría 2024"]])
+    top_20 = df_tb.nlargest(20, "Nota_num")[["Evaluado", "Cargo", "Evaluador", "Categoría 2024", "Nota 2024"]]
+    bottom_20 = df_tb.nsmallest(20, "Nota_num")[["Evaluado", "Cargo", "Evaluador", "Categoría 2024", "Nota 2024"]]
 
-        # Buscar persona
-        st.subheader("🔍 Buscar persona")
-        persona = st.text_input("Escribe el nombre del trabajador").strip().lower()
-        if persona:
-            resultado = df_filtrado[df_filtrado["Evaluado"].str.lower().str.contains(persona)]
-            st.dataframe(resultado)
+    st.markdown("### ⬆️ 20 evaluaciones más altas")
+    st.dataframe(top_20, use_container_width=True)
 
-    # =========================
+    st.markdown("### ⬇️ 20 evaluaciones más bajas")
+    st.dataframe(bottom_20, use_container_width=True)
+
+    # ============================
     # Sección 2: Liderazgo
-    # =========================
+    # ============================
     st.header("📌 Sección 2: Liderazgo")
 
     competencias = ["Humildad", "Resolutividad", "Formador de Personas",
-                    "Liderazgo Magnético", "Visión Estratégica", "Generación de Redes y Relaciones Efectivas"]
+                    "Liderazgo Magnético", "Visión Estratégica",
+                    "Generación de Redes y Relaciones Efectivas"]
 
-    if all(c in df.columns for c in competencias):
-        lideres = df.copy()
-        lideres["Nota2024"] = pd.to_numeric(lideres["Nota 2024"], errors="coerce")
-        for c in competencias:
-            lideres[c] = pd.to_numeric(lideres[c], errors="coerce")
+    df_lideres = df_2024[df_2024["Cargo"].str.contains("Jefe|Subgerente|Coordinador|Director|Supervisor", case=False, na=False)].copy()
 
-        # Calcular promedio de competencias
-        lideres["Promedio Competencias"] = lideres[competencias].mean(axis=1).round(2)
+    # Ranking por nota 2024 recibida
+    ranking_lideres = (
+        df_lideres.groupby("Evaluado")
+        .agg(Nota2024=("Nota_num", "mean"),
+             **{comp: (comp, "mean") for comp in competencias})
+        .reset_index()
+    )
+    ranking_lideres["Promedio Competencias"] = ranking_lideres[competencias].mean(axis=1)
+    ranking_lideres = ranking_lideres.sort_values("Nota2024", ascending=False).reset_index(drop=True)
+    ranking_lideres.index += 1
+    ranking_lideres.insert(0, "Ranking", ranking_lideres.index)
 
-        # Ranking por Nota 2024 recibida
-        ranking = lideres.sort_values("Nota2024", ascending=False).reset_index(drop=True)
-        ranking["Ranking"] = ranking.index + 1
-        st.dataframe(ranking[["Ranking", "Evaluado", "Nota2024"] + competencias + ["Promedio Competencias"]])
+    st.subheader("📈 Ranking de Líderes (Nota 2024 recibida)")
+    st.dataframe(ranking_lideres, use_container_width=True)
 
-        # Top 20 gráfico
-        top20_lideres = ranking.head(20)
-        promedio_clinica = lideres["Nota2024"].mean()
-        fig_bar = px.bar(top20_lideres, x="Evaluado", y="Nota2024", color="Nota2024",
-                         color_continuous_scale="Blues", text="Nota2024")
-        fig_bar.add_hline(y=promedio_clinica, line_dash="dash", line_color="red",
-                          annotation_text=f"Promedio clínica: {promedio_clinica:.2f}")
-        st.plotly_chart(fig_bar, use_container_width=True)
+    # Radar comparativo
+    st.subheader("🕸️ Radar de Competencias (Comparación)")
 
-        # Radar comparativo
-        st.subheader("🌟 Radar de Competencias (Comparación)")
-        dir_sel = st.selectbox("Selecciona dirección", ["Todas"] + sorted(df["Dirección"].dropna().unique().tolist()))
-        lider_sel = st.selectbox("Selecciona líder", sorted(df["Evaluado"].dropna().unique().tolist()))
-
-        df_radar = df.copy()
-        if dir_sel != "Todas":
-            dir_avg = df_radar[df_radar["Dirección"] == dir_sel][competencias].mean()
+    col1, col2 = st.columns(2)
+    with col1:
+        seleccion_direccion = st.selectbox("Selecciona dirección", ["Todas"] + sorted(df_2024["Dirección"].dropna().unique()))
+    with col2:
+        if seleccion_direccion != "Todas":
+            lideres_filtrados = ["Ninguno"] + sorted(
+                df_2024[df_2024["Dirección"] == seleccion_direccion]["Evaluado"].dropna().unique().tolist()
+            )
         else:
-            dir_avg = df_radar[competencias].mean()
+            lideres_filtrados = ["Ninguno"] + sorted(df_2024["Evaluado"].dropna().unique().tolist())
+        seleccion_lider = st.selectbox("Selecciona un líder", lideres_filtrados)
 
-        clinica_avg = df_radar[competencias].mean()
-        lider_val = df_radar[df_radar["Evaluado"] == lider_sel][competencias].mean()
+    promedio_clinica = df_2024[competencias].apply(pd.to_numeric, errors="coerce").mean()
+    if seleccion_direccion != "Todas":
+        promedio_direccion = df_2024[df_2024["Dirección"] == seleccion_direccion][competencias].apply(pd.to_numeric, errors="coerce").mean()
+    else:
+        promedio_direccion = None
+    if seleccion_lider != "Ninguno":
+        promedio_lider = df_2024[df_2024["Evaluado"] == seleccion_lider][competencias].apply(pd.to_numeric, errors="coerce").mean()
+    else:
+        promedio_lider = None
 
-        fig_radar = go.Figure()
-        fig_radar.add_trace(go.Scatterpolar(r=clinica_avg.values, theta=competencias, fill="toself", name="Clínica", line_color="darkblue"))
-        fig_radar.add_trace(go.Scatterpolar(r=dir_avg.values, theta=competencias, fill="toself", name="Dirección", line_color="orange"))
-        fig_radar.add_trace(go.Scatterpolar(r=lider_val.values, theta=competencias, fill="toself", name="Líder", line_color="yellow"))
-        fig_radar.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0, 5])))
-        st.plotly_chart(fig_radar, use_container_width=True)
+    fig_radar = go.Figure()
+    fig_radar.add_trace(go.Scatterpolar(r=promedio_clinica, theta=competencias, fill="toself", name="Clínica", line=dict(color="darkblue")))
+    if promedio_direccion is not None:
+        fig_radar.add_trace(go.Scatterpolar(r=promedio_direccion, theta=competencias, fill="toself", name=f"Dirección: {seleccion_direccion}", line=dict(color="orange")))
+    if promedio_lider is not None:
+        fig_radar.add_trace(go.Scatterpolar(r=promedio_lider, theta=competencias, fill="toself", name=f"Líder: {seleccion_lider}", line=dict(color="yellow")))
+    fig_radar.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0, 5])), showlegend=True)
+    st.plotly_chart(fig_radar, use_container_width=True)
 
-    # =========================
-    # Sección 3: Histórico
-    # =========================
-    st.header("📌 Sección 3: Desempeño histórico")
+    # ============================
+    # Sección 3: Desempeño Histórico
+    # ============================
+    st.header("📌 Sección 3: Desempeño Histórico")
 
-    cols_hist = ["Nota 2022", "Categoría 2022", "Nota 2023", "Categoría 2023", "Nota 2024", "Categoría 2024"]
-    hist = df[["Evaluado", "Cargo", "Dirección", "Área", "Sub-área"] + cols_hist]
-    st.dataframe(hist)
+    columnas_hist = ["Nota 2022", "Categoría 2022", "Nota 2023", "Categoría 2023", "Nota 2024", "Categoría 2024"]
+    st.subheader("📋 Tabla histórica")
+    st.dataframe(df_filtrado[["Evaluado", "Cargo", "Dirección", "Área", "Sub-área"] + columnas_hist], use_container_width=True)
 
-    # Trayectorias ascendentes
-    st.subheader("📈 Mejores trayectorias")
-    mejores = df[
-        (df["Categoría 2024"].isin(["Excepcional", "Destacado"])) &
-        (df["Categoría 2023"].isin(["Excepcional", "Destacado"])) |
-        (df["Categoría 2022"].isin(["Excepcional", "Destacado"]))
+    # Trayectorias destacadas
+    st.subheader("🌟 Mejores trayectorias")
+    mejores_tray = df_filtrado[
+        (df_filtrado["Categoría 2024"].isin(["Excepcional", "Destacado"])) &
+        (df_filtrado[["Categoría 2022", "Categoría 2023"]].isin(["Excepcional", "Destacado"]).sum(axis=1) >= 1)
     ]
-    st.dataframe(mejores[["Evaluado"] + cols_hist])
+    st.dataframe(mejores_tray[["Evaluado"] + columnas_hist], use_container_width=True)
 
-    # Trayectorias descendentes
-    st.subheader("📉 Trayectorias descendentes")
-    peores = df[
-        (df["Categoría 2024"].isin(["No Cumple", "Cumple Parcial"])) &
-        (df["Categoría 2023"].isin(["No Cumple", "Cumple Parcial"])) |
-        (df["Categoría 2022"].isin(["No Cumple", "Cumple Parcial"]))
+    st.subheader("⚠️ Trayectorias descendentes")
+    malas_tray = df_filtrado[
+        (df_filtrado["Categoría 2024"].isin(["No cumple", "Cumple Parcialmente"])) &
+        (df_filtrado[["Categoría 2022", "Categoría 2023"]].isin(["No cumple", "Cumple Parcialmente"]).sum(axis=1) >= 1)
     ]
-    st.dataframe(peores[["Evaluado"] + cols_hist])
+    st.dataframe(malas_tray[["Evaluado"] + columnas_hist], use_container_width=True)
 
     # Evolución individual
-    st.subheader("🌟 Evolución individual")
-    trabajador_sel = st.selectbox("Selecciona trabajador", sorted(df["Evaluado"].dropna().unique().tolist()))
+    st.subheader("📈 Evolución individual")
+    trabajador = st.selectbox("Selecciona trabajador", ["Ninguno"] + sorted(df_filtrado["Evaluado"].dropna().unique().tolist()))
+    if trabajador != "Ninguno":
+        notas_hist = df_filtrado[df_filtrado["Evaluado"] == trabajador][["Nota 2022", "Nota 2023", "Nota 2024"]].T
+        notas_hist.columns = ["Nota"]
+        notas_hist["Año"] = [2022, 2023, 2024]
+        fig_ind = px.line(notas_hist, x="Año", y="Nota", markers=True, title=f"Evolución global de {trabajador}")
+        fig_ind.update_yaxes(range=[0, 5])
+        st.plotly_chart(fig_ind, use_container_width=True)
 
-    if trabajador_sel:
-        persona = df[df["Evaluado"] == trabajador_sel]
-        if not persona.empty:
-            notas = {
-                "2022": persona["Nota 2022"].values[0],
-                "2023": persona["Nota 2023"].values[0],
-                "2024": persona["Nota 2024"].values[0]
-            }
-            fig_linea = px.line(x=list(notas.keys()), y=list(notas.values()), markers=True, title=f"Evolución global de {trabajador_sel}")
-            st.plotly_chart(fig_linea, use_container_width=True)
+        st.subheader("🌐 Evolución de Competencias por Año")
+        competencias_hist = df_filtrado[df_filtrado["Evaluado"] == trabajador][competencias].T
+        competencias_hist.columns = [trabajador]
+        competencias_hist["Competencia"] = competencias_hist.index
+        fig_comp = px.bar(competencias_hist, x="Competencia", y=trabajador, title=f"Evolución de competencias - {trabajador}")
+        fig_comp.update_yaxes(range=[0, 5])
+        st.plotly_chart(fig_comp, use_container_width=True)
 
-            fig_comp = go.Figure()
-            for c in competencias:
-                vals = [
-                    persona[c].values[0] if c in persona.columns else None
-                ]
-            st.write("Competencias individuales aún en desarrollo")
+else:
+    st.info("📂 Sube un archivo CSV para comenzar.")
