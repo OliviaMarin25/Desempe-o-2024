@@ -7,7 +7,7 @@ import plotly.express as px
 # ==========================
 @st.cache_data
 def load_data():
-    df = pd.read_csv("Consolidado Desempeño 2024.csv", sep=";")
+    df = pd.read_csv("Desempeño 2024.csv", sep=";")
     return df
 
 df = load_data()
@@ -61,20 +61,23 @@ st.plotly_chart(fig_notas, use_container_width=True)
 # ==========================
 st.header("📌 Liderazgo")
 
-# Ranking de líderes por promedio de evaluación
-ranking_lideres = (
-    df_2024.groupby("Líder")
-    .agg(Promedio=("Nota","mean"), Evaluados=("Colaborador","count"))
-    .reset_index()
-    .sort_values(by="Promedio", ascending=False)
-)
+# Ranking de líderes por promedio
+if "Líder" in df_2024.columns:
+    ranking_lideres = (
+        df_2024.groupby("Líder")
+        .agg(Promedio=("Nota","mean"), Evaluados=("Colaborador","count"))
+        .reset_index()
+        .sort_values(by="Promedio", ascending=False)
+    )
 
-st.subheader("Ranking de líderes por promedio")
-st.dataframe(ranking_lideres)
+    st.subheader("Ranking de líderes por promedio")
+    st.dataframe(ranking_lideres)
 
-fig_lideres = px.bar(ranking_lideres, x="Líder", y="Promedio", color="Promedio",
-                     title="Promedio de desempeño por líder", text_auto=".2f")
-st.plotly_chart(fig_lideres, use_container_width=True)
+    fig_lideres = px.bar(ranking_lideres, x="Líder", y="Promedio", color="Promedio",
+                        title="Promedio de desempeño por líder", text_auto=".2f")
+    st.plotly_chart(fig_lideres, use_container_width=True)
+else:
+    st.warning("⚠️ No se encontró la columna 'Líder' en el dataset.")
 
 # ==========================
 # SECCIÓN 3: HISTORIA DE LA EVALUACIÓN
@@ -85,13 +88,17 @@ historico = (
     df_filtrado.groupby("Año")
     .agg(Promedio=("Nota","mean"), Evaluaciones=("Colaborador","count"))
     .reset_index()
+    .sort_values(by="Año")
 )
 
 col1, col2 = st.columns(2)
 with col1:
-    st.metric("Promedio 2022", round(historico.loc[historico["Año"]==2022,"Promedio"].values[0],2) if 2022 in historico["Año"].values else 0)
-    st.metric("Promedio 2023", round(historico.loc[historico["Año"]==2023,"Promedio"].values[0],2) if 2023 in historico["Año"].values else 0)
-    st.metric("Promedio 2024", round(historico.loc[historico["Año"]==2024,"Promedio"].values[0],2) if 2024 in historico["Año"].values else 0)
+    for year in [2022, 2023, 2024]:
+        if year in historico["Año"].values:
+            promedio = round(historico.loc[historico["Año"]==year,"Promedio"].values[0],2)
+            st.metric(f"Promedio {year}", promedio)
+        else:
+            st.metric(f"Promedio {year}", "N/D")
 
 with col2:
     fig_hist = px.line(historico, x="Año", y="Promedio", markers=True,
