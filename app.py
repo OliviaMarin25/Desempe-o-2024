@@ -2,16 +2,20 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
-# ==========================
-# CARGA DE DATOS
-# ==========================
-@st.cache_data
-def load_data():
-    df = pd.read_csv("Desempeño 2024.csv", sep=";")
-    return df
+st.set_page_config(page_title="Dashboard Desempeño", layout="wide")
 
-df = load_data()
-df.columns = df.columns.str.strip()
+# ==========================
+# SUBIR ARCHIVO
+# ==========================
+st.sidebar.header("Carga de datos")
+uploaded_file = st.sidebar.file_uploader("Sube el archivo CSV de desempeño", type=["csv"])
+
+if uploaded_file is not None:
+    df = pd.read_csv(uploaded_file, sep=";")
+    df.columns = df.columns.str.strip()
+else:
+    st.warning("⚠️ Por favor sube el archivo CSV para continuar.")
+    st.stop()
 
 # ==========================
 # FILTROS GENERALES
