@@ -53,15 +53,27 @@ with col3:
 
 # Distribución de notas
 st.subheader("Distribución de notas 2024")
-fig_notas = px.histogram(df_2024, x="Nota", nbins=5, title="Distribución de desempeño 2024")
-st.plotly_chart(fig_notas, use_container_width=True)
+if not df_2024.empty:
+    fig_notas = px.histogram(df_2024, x="Nota", nbins=5, title="Distribución de desempeño 2024")
+    st.plotly_chart(fig_notas, use_container_width=True)
+
+# Top 20 y Bottom 20 colaboradores
+if "Colaborador" in df_2024.columns and "Nota" in df_2024.columns:
+    st.subheader("Top 20 colaboradores (mejores evaluaciones 2024)")
+    top20 = df_2024.sort_values(by="Nota", ascending=False).head(20)
+    st.dataframe(top20[["Colaborador", "Nota", "Líder", "Dirección", "Área", "Sub-área"]])
+
+    st.subheader("Bottom 20 colaboradores (menores evaluaciones 2024)")
+    bottom20 = df_2024.sort_values(by="Nota", ascending=True).head(20)
+    st.dataframe(bottom20[["Colaborador", "Nota", "Líder", "Dirección", "Área", "Sub-área"]])
+else:
+    st.warning("⚠️ No se encontraron las columnas 'Colaborador' o 'Nota'.")
 
 # ==========================
 # SECCIÓN 2: LIDERAZGO
 # ==========================
 st.header("📌 Liderazgo")
 
-# Ranking de líderes por promedio
 if "Líder" in df_2024.columns:
     ranking_lideres = (
         df_2024.groupby("Líder")
@@ -101,9 +113,10 @@ with col1:
             st.metric(f"Promedio {year}", "N/D")
 
 with col2:
-    fig_hist = px.line(historico, x="Año", y="Promedio", markers=True,
-                       title="Tendencia histórica del desempeño")
-    st.plotly_chart(fig_hist, use_container_width=True)
+    if not historico.empty:
+        fig_hist = px.line(historico, x="Año", y="Promedio", markers=True,
+                        title="Tendencia histórica del desempeño")
+        st.plotly_chart(fig_hist, use_container_width=True)
 
 # Mostrar detalle tabla histórica
 st.subheader("Detalle histórico")
