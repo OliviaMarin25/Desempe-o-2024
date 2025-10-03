@@ -54,7 +54,7 @@ if uploaded_file is not None:
     df_2024["Nota_num"] = pd.to_numeric(df_2024["Nota 2024"], errors="coerce")
 
     conteo_categorias = df_2024["Categoría 2024"].value_counts().reindex(
-        ["Excepcional", "Destacado", "Cumple", "Cumple Parcialmente", "No cumple", "Pendiente"],
+        ["Excepcional", "Destacado", "Cumple", "Cumple Parcialmente", "No Cumple", "Pendiente"],
         fill_value=0
     ).reset_index()
     conteo_categorias.columns = ["Categoría", "Cantidad"]
@@ -68,7 +68,7 @@ if uploaded_file is not None:
         "Destacado": "skyblue",
         "Cumple": "green",
         "Cumple Parcialmente": "yellow",
-        "No cumple": "red",
+        "No Cumple": "red",
         "Pendiente": "lightgrey"
     }
 
@@ -144,19 +144,20 @@ if uploaded_file is not None:
     st.subheader("📈 Ranking de Líderes (Nota 2024 recibida)")
     st.dataframe(ranking_lideres, use_container_width=True)
 
-    # Radar comparativo
+    # Radar comparativo (SOLO líderes)
     st.subheader("🕸️ Radar de Competencias (Comparación)")
 
     col1, col2 = st.columns(2)
     with col1:
         seleccion_direccion = st.selectbox("Selecciona dirección", ["Todas"] + sorted(df_2024["Dirección"].dropna().unique()))
     with col2:
+        filtro_lideres = df_2024[df_2024["Cargo"].str.contains("Jefe|Subgerente|Coordinador|Director|Supervisor", case=False, na=False)]
         if seleccion_direccion != "Todas":
             lideres_filtrados = ["Ninguno"] + sorted(
-                df_2024[df_2024["Dirección"] == seleccion_direccion]["Evaluado"].dropna().unique().tolist()
+                filtro_lideres[filtro_lideres["Dirección"] == seleccion_direccion]["Evaluado"].dropna().unique().tolist()
             )
         else:
-            lideres_filtrados = ["Ninguno"] + sorted(df_2024["Evaluado"].dropna().unique().tolist())
+            lideres_filtrados = ["Ninguno"] + sorted(filtro_lideres["Evaluado"].dropna().unique().tolist())
         seleccion_lider = st.selectbox("Selecciona un líder", lideres_filtrados)
 
     promedio_clinica = df_2024[competencias].apply(pd.to_numeric, errors="coerce").mean()
@@ -197,8 +198,8 @@ if uploaded_file is not None:
 
     st.subheader("⚠️ Trayectorias descendentes")
     malas_tray = df_filtrado[
-        (df_filtrado["Categoría 2024"].isin(["No cumple", "Cumple Parcialmente"])) &
-        (df_filtrado[["Categoría 2022", "Categoría 2023"]].isin(["No cumple", "Cumple Parcialmente"]).sum(axis=1) >= 1)
+        (df_filtrado["Categoría 2024"].isin(["No Cumple", "Cumple Parcialmente"])) &
+        (df_filtrado[["Categoría 2022", "Categoría 2023"]].isin(["No Cumple", "Cumple Parcialmente"]).sum(axis=1) >= 1)
     ]
     st.dataframe(malas_tray[["Evaluado"] + columnas_hist], use_container_width=True)
 
