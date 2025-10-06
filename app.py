@@ -2,18 +2,25 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-import numpy as np 
+import numpy as np
 
 st.set_page_config(page_title="Reporte de Desempeño - 2024", layout="wide")
 
 # --- Constantes y Configuración ---
 
-# Definición de constantes
-COMPETENCIAS = [
+# MODIFICACIÓN 1: Se definen dos listas de competencias.
+# Lista para la sección de Liderazgo
+COMPETENCIAS_LIDERAZGO = [
     "Humildad", "Resolutividad", "Formador de Personas",
     "Liderazgo Magnético", "Visión Estratégica",
     "Generación de Redes y Relaciones Efectivas"
 ]
+# Nueva lista para el gráfico de radar individual (transversales)
+COMPETENCIAS_TRANSVERSALES = [
+    "Productividad", "Calidad del Trabajo", "Iniciativa", 
+    "Trabajo en Equipo", "Orientación al Cliente", "Resolutividad"
+]
+
 CATEGORIAS_ORDEN = [
     "Excepcional", "Destacado", "Cumple", "Cumple Parcialmente", "No Cumple", "Pendiente"
 ]
@@ -63,11 +70,13 @@ def load_and_process_data(uploaded_file):
     df_proc["Nota_num_2023"] = pd.to_numeric(df_proc.get("Nota 2023", pd.Series(dtype='float64')), errors="coerce")
     df_proc["Nota_num_2022"] = pd.to_numeric(df_proc.get("Nota 2022", pd.Series(dtype='float64')), errors="coerce")
 
-    # Conversión de competencias a numérico
-    for comp in COMPETENCIAS:
+    # MODIFICACIÓN 2: Se asegura de convertir a número todas las competencias de ambas listas.
+    # Combinamos ambas listas de competencias para la conversión
+    TODAS_COMPETENCIAS = list(set(COMPETENCIAS_LIDERAZGO + COMPETENCIAS_TRANSVERSALES))
+    for comp in TODAS_COMPETENCIAS:
         if comp in df_proc.columns:
-             df_proc[comp] = pd.to_numeric(df_proc[comp], errors="coerce")
-             
+              df_proc[comp] = pd.to_numeric(df_proc[comp], errors="coerce")
+              
     # Rellenar valores nulos
     for col in ["Dirección", "Área", "Sub-área", "Evaluado", "Cargo", "Categoría 2024"]:
         if col in df_proc.columns:
@@ -225,10 +234,11 @@ if uploaded_file is not None:
     ranking_lideres = (
         df_lideres.groupby("Evaluado")
         .agg(Nota2024=("Nota_num_2024", "mean"),
-             **{comp: (comp, "mean") for comp in COMPETENCIAS})
+             # Aquí usamos la lista de competencias de liderazgo
+             **{comp: (comp, "mean") for comp in COMPETENCIAS_LIDERAZGO})
         .reset_index()
     )
-    ranking_lideres["Promedio Competencias"] = ranking_lideres[COMPETENCIAS].mean(axis=1).round(2)
+    ranking_lideres["Promedio Competencias"] = ranking_lideres[COMPETENCIAS_LIDERAZGO].mean(axis=1).round(2)
     ranking_lideres["Nota2024"] = ranking_lideres["Nota2024"].round(2)
     ranking_lideres = ranking_lideres.sort_values("Nota2024", ascending=False).reset_index(drop=True)
     ranking_lideres.index += 1
@@ -257,38 +267,38 @@ if uploaded_file is not None:
             
         seleccion_lider = st.selectbox("Selecciona un Líder Específico", ["Ninguno"] + lideres_disponibles, key='lider_radar')
     
-    # Cálculos para el radar
-    promedio_clinica = df[COMPETENCIAS].mean()
+    # Cálculos para el radar de Liderazgo
+    promedio_clinica = df[COMPETENCIAS_LIDERAZGO].mean()
     promedio_direccion = None
     promedio_lider = None
 
     if seleccion_direccion_radar != "Ninguno":
-        promedio_direccion = df[df["Dirección"] == seleccion_direccion_radar][COMPETENCIAS].mean()
+        promedio_direccion = df[df["Dirección"] == seleccion_direccion_radar][COMPETENCIAS_LIDERAZGO].mean()
     
     if seleccion_lider != "Ninguno":
-        promedio_lider = df[df["Evaluado"] == seleccion_lider][COMPETENCIAS].mean()
+        promedio_lider = df[df["Evaluado"] == seleccion_lider][COMPETENCIAS_LIDERAZGO].mean()
         
     fig_radar = go.Figure()
 
     fig_radar.add_trace(go.Scatterpolar(r=promedio_clinica.values, 
-                                        theta=COMPETENCIAS, 
-                                        fill="toself", 
-                                        name="Promedio Clínica", 
-                                        line=dict(color=COLORES_CATEGORIAS["Destacado"])))
+                                          theta=COMPETENCIAS_LIDERAZGO, 
+                                          fill="toself", 
+                                          name="Promedio Clínica", 
+                                          line=dict(color=COLORES_CATEGORIAS["Destacado"])))
 
     if promedio_direccion is not None and not promedio_direccion.empty:
         fig_radar.add_trace(go.Scatterpolar(r=promedio_direccion.values, 
-                                            theta=COMPETENCIAS, 
-                                            fill="toself", 
-                                            name=f"Promedio Dirección: {seleccion_direccion_radar}", 
-                                            line=dict(color=COLORES_CATEGORIAS["Cumple"])))
-                                            
+                                              theta=COMPETENCIAS_LIDERAZGO, 
+                                              fill="toself", 
+                                              name=f"Promedio Dirección: {seleccion_direccion_radar}", 
+                                              line=dict(color=COLORES_CATEGORIAS["Cumple"])))
+                                              
     if promedio_lider is not None and not promedio_lider.empty:
         fig_radar.add_trace(go.Scatterpolar(r=promedio_lider.values, 
-                                            theta=COMPETENCIAS, 
-                                            fill="toself", 
-                                            name=f"Líder: {seleccion_lider}", 
-                                            line=dict(color=COLORES_CATEGORIAS["Excepcional"])))
+                                              theta=COMPETENCIAS_LIDERAZGO, 
+                                              fill="toself", 
+                                              name=f"Líder: {seleccion_lider}", 
+                                              line=dict(color=COLORES_CATEGORIAS["Excepcional"])))
         
     fig_radar.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0, 5])), 
                             showlegend=True,
@@ -345,63 +355,83 @@ if uploaded_file is not None:
     
     if trabajador != "Ninguno":
         
+        trabajador_info = df_filtrado.loc[df_filtrado['Evaluado'] == trabajador].iloc[0]
+
+        # MODIFICACIÓN 3: Se mejora el gráfico de evolución de nota global.
         # 1. Evolución de Nota Global (Línea)
         st.markdown("#### Evolución Histórica de la Nota Global")
         notas_data = {
             "Año": [2022, 2023, 2024],
             "Nota": [
-                df_filtrado[df_filtrado["Evaluado"] == trabajador].get("Nota_num_2022", pd.Series(dtype='float64')).iloc[0] if not df_filtrado[df_filtrado["Evaluado"] == trabajador].empty else np.nan,
-                df_filtrado[df_filtrado["Evaluado"] == trabajador].get("Nota_num_2023", pd.Series(dtype='float64')).iloc[0] if not df_filtrado[df_filtrado["Evaluado"] == trabajador].empty else np.nan,
-                df_filtrado[df_filtrado["Evaluado"] == trabajador].get("Nota_num_2024", pd.Series(dtype='float64')).iloc[0] if not df_filtrado[df_filtrado["Evaluado"] == trabajador].empty else np.nan
+                trabajador_info.get("Nota_num_2022", np.nan),
+                trabajador_info.get("Nota_num_2023", np.nan),
+                trabajador_info.get("Nota_num_2024", np.nan)
             ]
         }
         notas_hist = pd.DataFrame(notas_data).dropna(subset=["Nota"])
 
         if not notas_hist.empty:
-            fig_ind = px.line(notas_hist, x="Año", y="Nota", markers=True, 
-                              title=f"Nota Global por Año de {trabajador}",
-                              line_shape='spline')
-            fig_ind.update_yaxes(range=[0, 5], dtick=0.5) 
-            fig_ind.update_layout(xaxis=dict(tickmode='array', tickvals=[2022, 2023, 2024], tickformat='d'))
+            # Usamos go.Figure y go.Scatter para un mejor control visual.
+            # Este modo 'lines+markers' mostrará una línea si hay >1 punto, y solo un marcador si hay 1.
+            fig_ind = go.Figure()
+            fig_ind.add_trace(go.Scatter(
+                x=notas_hist["Año"],
+                y=notas_hist["Nota"],
+                mode='lines+markers',  # Dibuja líneas y marcadores
+                line_shape='spline',
+                marker=dict(size=10)
+            ))
+            fig_ind.update_layout(
+                title_text=f"Nota Global por Año de {trabajador}",
+                xaxis=dict(tickmode='array', tickvals=[2022, 2023, 2024], tickformat='d'),
+                yaxis=dict(range=[0, 5], dtick=0.5)
+            )
             st.plotly_chart(fig_ind, use_container_width=True)
         else:
-            st.info(f"Datos de nota global insuficientes para {trabajador}.")
+            st.info(f"No se encontraron datos de notas históricas para {trabajador}.")
             
         # 2. Resumen Anual de Categoría y Feedback
         st.markdown("#### Categoría y Estado de Feedback (2024)")
-        info_2024 = df_filtrado[df_filtrado["Evaluado"] == trabajador].iloc[0]
         
         col_cat, col_feed = st.columns(2)
         with col_cat:
-            st.metric("Categoría 2024", info_2024.get("Categoría 2024", "N/A"))
+            st.metric("Categoría 2024", trabajador_info.get("Categoría 2024", "N/A"))
         with col_feed:
-            st.metric("Avances Feedback", info_2024.get("Avances Feedback", "N/A"))
+            st.metric("Avances Feedback", trabajador_info.get("Avances Feedback", "N/A"))
 
+        # MODIFICACIÓN 4: Se usa la nueva lista de competencias transversales para el gráfico de radar.
         # 3. Evolución de Competencias (Radar)
         st.markdown("#### Desempeño en Competencias vs. Promedio del Grupo")
         
-        datos_trabajador = df_filtrado[df_filtrado["Evaluado"] == trabajador][COMPETENCIAS].iloc[0]
-        promedio_filtrado = df_filtrado[COMPETENCIAS].mean()
+        # Filtramos solo las competencias transversales que existen en el archivo
+        competencias_existentes = [c for c in COMPETENCIAS_TRANSVERSALES if c in df_filtrado.columns]
         
-        fig_comp_radar = go.Figure()
-        
-        fig_comp_radar.add_trace(go.Scatterpolar(r=promedio_filtrado.values, 
-                                            theta=COMPETENCIAS, 
-                                            fill="toself", 
-                                            name="Promedio Grupo Filtrado", 
-                                            line=dict(color=COLORES_CATEGORIAS["Cumple"])))
-        
-        fig_comp_radar.add_trace(go.Scatterpolar(r=datos_trabajador.values, 
-                                            theta=COMPETENCIAS, 
-                                            fill="toself", 
-                                            name=f"{trabajador}", 
-                                            line=dict(color=COLORES_CATEGORIAS["Destacado"])))
-        
-        fig_comp_radar.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0, 5])), 
-                                     showlegend=True,
-                                     title=f"Competencias Clave (Escala 1 a 5)")
-        st.plotly_chart(fig_comp_radar, use_container_width=True)
-
+        if not competencias_existentes:
+             st.warning("Las columnas de competencias transversales no se encontraron en el archivo.")
+        else:
+            datos_trabajador = trabajador_info[competencias_existentes]
+            promedio_filtrado = df_filtrado[competencias_existentes].mean()
+            
+            fig_comp_radar = go.Figure()
+            
+            fig_comp_radar.add_trace(go.Scatterpolar(r=promedio_filtrado.values, 
+                                                    theta=competencias_existentes, 
+                                                    fill="toself", 
+                                                    name="Promedio Grupo Filtrado", 
+                                                    line=dict(color=COLORES_CATEGORIAS["Cumple"])))
+            
+            fig_comp_radar.add_trace(go.Scatterpolar(r=datos_trabajador.values, 
+                                                    theta=competencias_existentes, 
+                                                    fill="toself", 
+                                                    name=f"{trabajador}", 
+                                                    line=dict(color=COLORES_CATEGORIAS["Destacado"])))
+            
+            fig_comp_radar.update_layout(
+                polar=dict(radialaxis=dict(visible=True, range=[0, 5])), 
+                showlegend=True,
+                title="Competencias Transversales (Escala 1 a 5)" # Título actualizado
+            )
+            st.plotly_chart(fig_comp_radar, use_container_width=True)
 
 else:
-    st.info("📂 Sube un archivo CSV para comenzar. El sistema intentará detecta distintos separadores y codificaciones.")
+    st.info("📂 Sube un archivo CSV para comenzar. El sistema intentará detectar distintos separadores y codificaciones.")
