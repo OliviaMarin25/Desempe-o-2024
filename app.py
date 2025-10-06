@@ -6,7 +6,7 @@ import numpy as np
 
 st.set_page_config(page_title="Reporte de Desempeño - 2024", layout="wide")
 
-# --- 1. ESTRUCTURA DEL CÓDIGO: Modularización y Constantes ---
+# --- Constantes y Configuración ---
 
 # Definición de constantes
 COMPETENCIAS = [
@@ -25,6 +25,8 @@ COLORES_CATEGORIAS = {
     "No Cumple": "#DC143C",   # Crimson
     "Pendiente": "#D3D3D3"    # LightGray
 }
+COLORES_FEEDBACK = {"Completado": "#3CB371", "En Proceso": "#FFD700", "Pendiente": "#DC143C"}
+
 
 st.title("📊 Reporte de Desempeño - 2024")
 
@@ -36,19 +38,24 @@ st.title("📊 Reporte de Desempeño - 2024")
 def load_and_process_data(uploaded_file):
     """Carga y procesa el archivo CSV con manejo de múltiples separadores/encodings."""
     try:
+        # Intento 1: Separador ; UTF-8
         df = pd.read_csv(uploaded_file, sep=";", encoding="utf-8", engine="python")
-    except:
+    except Exception:
         try:
+            # Intento 2: Separador , Latin-1
+            uploaded_file.seek(0) # Resetear puntero
             df = pd.read_csv(uploaded_file, sep=",", encoding="latin-1", engine="python")
-        except:
+        except Exception:
             try:
+                # Intento 3: Separador tab UTF-8
+                uploaded_file.seek(0) # Resetear puntero
                 df = pd.read_csv(uploaded_file, sep="\t", encoding="utf-8", engine="python")
             except Exception as e:
                 st.error(f"Error al leer el archivo. Intenta con un formato diferente. Detalle: {e}")
                 return None
     
+    # Normalización y Limpieza
     df.columns = df.columns.str.strip()
-    
     df_proc = df.copy()
     
     # Conversión de notas a numérico
@@ -66,8 +73,7 @@ def load_and_process_data(uploaded_file):
         if col in df_proc.columns:
             df_proc[col] = df_proc[col].fillna("Sin Asignar")
     
-    # 🌟 ASUMO LA EXISTENCIA DE UNA COLUMNA DE FEEDBACK PARA EL PUNTO NUEVO 🌟
-    # Si la columna "Avances Feedback" no existe, la creamos con datos de ejemplo para evitar error
+    # Columna de Feedback de ejemplo (si no existe)
     if "Avances Feedback" not in df_proc.columns:
         np.random.seed(42)
         df_proc["Avances Feedback"] = np.random.choice(["Completado", "En Proceso", "Pendiente"], size=len(df_proc))
@@ -117,7 +123,7 @@ if uploaded_file is not None:
     st.header("🔑 Métricas Clave (KPIs)")
     
     total_evaluados = df_2024["Evaluado"].nunique()
-    promedio_nota = df_2024["Nota_num_2024"].mean()
+    promedio_nota = df_2024["Nota_num_2024"].mean() if "Nota_num_2024" in df_2024.columns else np.nan
     porc_destacado_o_mas = (
         df_2024["Categoría 2024"].isin(["Excepcional", "Destacado"]).sum() / total_evaluados
     ) * 100 if total_evaluados > 0 else 0
@@ -127,7 +133,7 @@ if uploaded_file is not None:
     with col1:
         st.metric("Total de Evaluados", f"{total_evaluados:,}")
     with col2:
-        st.metric("Nota Promedio (2024)", f"{promedio_nota:.2f}")
+        st.metric("Nota Promedio (2024)", f"{promedio_nota:.2f}" if not np.isnan(promedio_nota) else "N/A")
     with col3:
         st.metric("% Destacado o Superior", f"{porc_destacado_o_mas:.1f}%")
 
@@ -168,16 +174,13 @@ if uploaded_file is not None:
         fig_cat.update_traces(textposition='outside')
         st.plotly_chart(fig_cat, use_container_width=True)
 
-    # 🌟 NUEVA SECCIÓN: Avances en Feedback 🌟
+    # Avances en Feedback
     with col_feedback:
         st.subheader("Avance en Plan de Feedback")
         
-        # Conteo de la columna "Avances Feedback" (asumiendo que existe)
+        # Conteo de la columna "Avances Feedback"
         conteo_feedback = df_2024["Avances Feedback"].value_counts().reset_index()
         conteo_feedback.columns = ["Estado", "Cantidad"]
-        
-        # Asignar colores para el gráfico de torta
-        colores_feedback = {"Completado": "#3CB371", "En Proceso": "#FFD700", "Pendiente": "#DC143C"}
         
         fig_feedback = px.pie(
             conteo_feedback, 
@@ -185,7 +188,7 @@ if uploaded_file is not None:
             values='Cantidad', 
             title='Estado de Cumplimiento de Feedback',
             color='Estado',
-            color_discrete_map=colores_feedback
+            color_discrete_map=COLORES_FEEDBACK
         )
         fig_feedback.update_traces(textposition='inside', textinfo='percent+label')
         fig_feedback.update_layout(showlegend=False)
@@ -211,9 +214,89 @@ if uploaded_file is not None:
         
     st.markdown("---")
 
-    # [Sección 2: Liderazgo - Código omitido por brevedad, no hay cambios aquí]
-    # ...
+    # ============================
+    # Sección 2: Liderazgo
+    # ============================
+    st.header("📌 Sección 2: Liderazgo")
+
+    df_lideres = df_2024[df_2024["Cargo"].str.contains("Jefe|Subgerente|Coordinador|Director|Supervisor", case=False, na=False)].copy()
+
+    # Ranking por nota 2024 recibida
+    ranking_lideres = (
+        df_lideres.groupby("Evaluado")
+        .agg(Nota2024=("Nota_num_2024", "mean"),
+             **{comp: (comp, "mean") for comp in COMPETENCIAS})
+        .reset_index()
+    )
+    ranking_lideres["Promedio Competencias"] = ranking_lideres[COMPETENCIAS].mean(axis=1).round(2)
+    ranking_lideres["Nota2024"] = ranking_lideres["Nota2024"].round(2)
+    ranking_lideres = ranking_lideres.sort_values("Nota2024", ascending=False).reset_index(drop=True)
+    ranking_lideres.index += 1
+    ranking_lideres.insert(0, "Ranking", ranking_lideres.index)
+
+    st.subheader("📈 Ranking de Líderes (Nota 2024 recibida)")
+    st.dataframe(ranking_lideres, use_container_width=True)
+
+    # Radar comparativo
+    st.subheader("🕸️ Radar de Competencias (Comparación)")
+
+    col_dir_radar, col_lider_radar = st.columns(2)
+    with col_dir_radar:
+        seleccion_direccion_radar = st.selectbox("Selecciona Dirección para Comparar", 
+                                                 ["Ninguno"] + sorted(df["Dirección"].dropna().unique()),
+                                                 key='dir_radar')
+    with col_lider_radar:
+        filtro_lideres_radar = df[df["Cargo"].str.contains("Jefe|Subgerente|Coordinador|Director|Supervisor", case=False, na=False)]
+        
+        if seleccion_direccion_radar != "Ninguno":
+            lideres_disponibles = sorted(
+                filtro_lideres_radar[filtro_lideres_radar["Dirección"] == seleccion_direccion_radar]["Evaluado"].dropna().unique().tolist()
+            )
+        else:
+            lideres_disponibles = sorted(filtro_lideres_radar["Evaluado"].dropna().unique().tolist())
+            
+        seleccion_lider = st.selectbox("Selecciona un Líder Específico", ["Ninguno"] + lideres_disponibles, key='lider_radar')
     
+    # Cálculos para el radar
+    promedio_clinica = df[COMPETENCIAS].mean()
+    promedio_direccion = None
+    promedio_lider = None
+
+    if seleccion_direccion_radar != "Ninguno":
+        promedio_direccion = df[df["Dirección"] == seleccion_direccion_radar][COMPETENCIAS].mean()
+    
+    if seleccion_lider != "Ninguno":
+        promedio_lider = df[df["Evaluado"] == seleccion_lider][COMPETENCIAS].mean()
+        
+    fig_radar = go.Figure()
+
+    fig_radar.add_trace(go.Scatterpolar(r=promedio_clinica.values, 
+                                        theta=COMPETENCIAS, 
+                                        fill="toself", 
+                                        name="Promedio Clínica", 
+                                        line=dict(color=COLORES_CATEGORIAS["Destacado"])))
+
+    if promedio_direccion is not None and not promedio_direccion.empty:
+        fig_radar.add_trace(go.Scatterpolar(r=promedio_direccion.values, 
+                                            theta=COMPETENCIAS, 
+                                            fill="toself", 
+                                            name=f"Promedio Dirección: {seleccion_direccion_radar}", 
+                                            line=dict(color=COLORES_CATEGORIAS["Cumple"])))
+                                            
+    if promedio_lider is not None and not promedio_lider.empty:
+        fig_radar.add_trace(go.Scatterpolar(r=promedio_lider.values, 
+                                            theta=COMPETENCIAS, 
+                                            fill="toself", 
+                                            name=f"Líder: {seleccion_lider}", 
+                                            line=dict(color=COLORES_CATEGORIAS["Excepcional"])))
+        
+    fig_radar.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0, 5])), 
+                            showlegend=True,
+                            title="Nivelación de Competencias de Liderazgo (Escala 1 a 5)")
+    st.plotly_chart(fig_radar, use_container_width=True)
+    
+    st.markdown("---")
+
     # ============================
     # Sección 3: Desempeño Histórico
     # ============================
@@ -227,10 +310,18 @@ if uploaded_file is not None:
     def es_bajo(categoria):
         return categoria in ["No Cumple", "Cumple Parcialmente"]
 
-    cols_a_mostrar = [col for col in ["Evaluado", "Cargo", "Dirección", "Área", "Sub-área"] + columnas_hist if col in df_filtrado.columns]
-    st.dataframe(df_filtrado[cols_a_mostrar].sort_values("Nota_num_2024", ascending=False), use_container_width=True)
+    # Corrección del KeyError: Ordenar antes de seleccionar columnas
+    cols_base = ["Evaluado", "Cargo", "Dirección", "Área", "Sub-área"]
+    cols_a_mostrar = [col for col in cols_base + columnas_hist if col in df_filtrado.columns]
+
+    df_ordenado = df_filtrado.copy()
+    if "Nota_num_2024" in df_ordenado.columns:
+        df_ordenado = df_ordenado.sort_values("Nota_num_2024", ascending=False)
+
+    st.dataframe(df_ordenado[cols_a_mostrar], use_container_width=True) # Mostrar solo las columnas visibles
 
     st.subheader("🌟 Mejores trayectorias (Consistentemente 'Destacado' o 'Excepcional')")
+    
     mejores_tray = df_filtrado[
         df_filtrado.apply(lambda row: es_top(row.get("Categoría 2024")) and 
                                       (es_top(row.get("Categoría 2023")) or es_top(row.get("Categoría 2022"))), axis=1)
@@ -238,14 +329,16 @@ if uploaded_file is not None:
     st.dataframe(mejores_tray[["Evaluado"] + columnas_hist], use_container_width=True)
 
     st.subheader("⚠️ Trayectorias descendentes (Consistentemente 'No Cumple' o 'Cumple Parcialmente')")
+    
     malas_tray = df_filtrado[
         df_filtrado.apply(lambda row: es_bajo(row.get("Categoría 2024")) and 
                                       (es_bajo(row.get("Categoría 2023")) or es_bajo(row.get("Categoría 2022"))), axis=1)
     ]
     st.dataframe(malas_tray[["Evaluado"] + columnas_hist], use_container_width=True)
 
-    # 🌟 VISUALIZACIÓN DE TRAYECTORIA INDIVIDUAL MEJORADA 🌟
+    # Evolución Individual Mejorada
     st.subheader("📈 Evolución y Trayectoria Individual")
+    
     col_sel_trabajador, _ = st.columns([1, 2])
     with col_sel_trabajador:
         trabajador = st.selectbox("Selecciona trabajador", ["Ninguno"] + sorted(df_filtrado["Evaluado"].dropna().unique().tolist()), key='sel_trab_hist')
@@ -257,9 +350,9 @@ if uploaded_file is not None:
         notas_data = {
             "Año": [2022, 2023, 2024],
             "Nota": [
-                df_filtrado[df_filtrado["Evaluado"] == trabajador]["Nota_num_2022"].iloc[0],
-                df_filtrado[df_filtrado["Evaluado"] == trabajador]["Nota_num_2023"].iloc[0],
-                df_filtrado[df_filtrado["Evaluado"] == trabajador]["Nota_num_2024"].iloc[0]
+                df_filtrado[df_filtrado["Evaluado"] == trabajador].get("Nota_num_2022", pd.Series(dtype='float64')).iloc[0] if not df_filtrado[df_filtrado["Evaluado"] == trabajador].empty else np.nan,
+                df_filtrado[df_filtrado["Evaluado"] == trabajador].get("Nota_num_2023", pd.Series(dtype='float64')).iloc[0] if not df_filtrado[df_filtrado["Evaluado"] == trabajador].empty else np.nan,
+                df_filtrado[df_filtrado["Evaluado"] == trabajador].get("Nota_num_2024", pd.Series(dtype='float64')).iloc[0] if not df_filtrado[df_filtrado["Evaluado"] == trabajador].empty else np.nan
             ]
         }
         notas_hist = pd.DataFrame(notas_data).dropna(subset=["Nota"])
@@ -267,7 +360,7 @@ if uploaded_file is not None:
         if not notas_hist.empty:
             fig_ind = px.line(notas_hist, x="Año", y="Nota", markers=True, 
                               title=f"Nota Global por Año de {trabajador}",
-                              line_shape='spline') # Usar spline para una línea más suave
+                              line_shape='spline')
             fig_ind.update_yaxes(range=[0, 5], dtick=0.5) 
             fig_ind.update_layout(xaxis=dict(tickmode='array', tickvals=[2022, 2023, 2024], tickformat='d'))
             st.plotly_chart(fig_ind, use_container_width=True)
