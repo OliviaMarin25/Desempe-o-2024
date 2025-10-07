@@ -73,17 +73,22 @@ def load_and_process_data(uploaded_file):
     TODAS_COMPETENCIAS = list(set(COMPETENCIAS_LIDERAZGO + COMPETENCIAS_TRANSVERSALES))
     for comp in TODAS_COMPETENCIAS:
         if comp in df_proc.columns:
-              df_proc[comp] = pd.to_numeric(df_proc[comp], errors="coerce")
+             df_proc[comp] = pd.to_numeric(df_proc[comp], errors="coerce")
 
     # Rellenar valores nulos
     for col in ["Dirección", "Área", "Sub-área", "Evaluado", "Cargo", "Categoría 2024"]:
         if col in df_proc.columns:
             df_proc[col] = df_proc[col].fillna("Sin Asignar")
 
-    # Columna de Feedback de ejemplo (si no existe)
-    if "Avances Feedback" not in df_proc.columns:
+    # Columna de Feedback: Usar "Estado Feedback" o generar una columna de ejemplo si no existe
+    if "Estado Feedback" not in df_proc.columns:
         np.random.seed(42)
-        df_proc["Avances Feedback"] = np.random.choice(["Completado", "En Proceso", "Pendiente"], size=len(df_proc))
+        st.warning("Columna 'Estado Feedback' no encontrada. Se generarán datos de ejemplo.")
+        df_proc["Estado Feedback"] = np.random.choice(["Completado", "En Proceso", "Pendiente"], size=len(df_proc))
+    
+    # Asegurar que el nombre de la columna sea limpio para uso futuro
+    df_proc.rename(columns={"Estado Feedback": "Estado_Feedback"}, inplace=True)
+
 
     return df_proc
 
@@ -97,6 +102,10 @@ if uploaded_file is not None:
 
     if df is None:
         st.stop()
+        
+    # Renombrarla a "Estado Feedback" para el display
+    df.rename(columns={"Estado_Feedback": "Estado Feedback"}, inplace=True)
+
 
     # ============================
     # Filtros dinámicos (Sidebar)
@@ -185,8 +194,7 @@ if uploaded_file is not None:
     with col_feedback:
         st.subheader("Avance en Plan de Feedback")
 
-        # Conteo de la columna "Avances Feedback"
-        conteo_feedback = df_2024["Avances Feedback"].value_counts().reset_index()
+        conteo_feedback = df_2024["Estado Feedback"].value_counts().reset_index()
         conteo_feedback.columns = ["Estado", "Cantidad"]
 
         fig_feedback = px.pie(
@@ -273,26 +281,32 @@ if uploaded_file is not None:
     if seleccion_direccion_radar != "Ninguno":
         promedio_direccion = df[df["Dirección"] == seleccion_direccion_radar][COMPETENCIAS_LIDERAZGO].mean()
 
+    if promedio_direccion is not None and promedio_direccion.isnull().all():
+        promedio_direccion = None # Si todos son NaN, no mostrar
+
     if seleccion_lider != "Ninguno":
         promedio_lider = df[df["Evaluado"] == seleccion_lider][COMPETENCIAS_LIDERAZGO].mean()
+        
+    if promedio_lider is not None and promedio_lider.isnull().all():
+        promedio_lider = None # Si todos son NaN, no mostrar
 
     fig_radar = go.Figure()
 
-    fig_radar.add_trace(go.Scatterpolar(r=promedio_clinica.values,
+    fig_radar.add_trace(go.Scatterpolar(r=promedio_clinica.values.fillna(0), # Rellenar NaN con 0 para que el gráfico no falle
                                           theta=COMPETENCIAS_LIDERAZGO,
                                           fill="toself",
                                           name="Promedio Clínica",
                                           line=dict(color=COLORES_CATEGORIAS["Destacado"])))
 
-    if promedio_direccion is not None and not promedio_direccion.empty:
-        fig_radar.add_trace(go.Scatterpolar(r=promedio_direccion.values,
+    if promedio_direccion is not None:
+        fig_radar.add_trace(go.Scatterpolar(r=promedio_direccion.values.fillna(0),
                                               theta=COMPETENCIAS_LIDERAZGO,
                                               fill="toself",
                                               name=f"Promedio Dirección: {seleccion_direccion_radar}",
                                               line=dict(color=COLORES_CATEGORIAS["Cumple"])))
 
-    if promedio_lider is not None and not promedio_lider.empty:
-        fig_radar.add_trace(go.Scatterpolar(r=promedio_lider.values,
+    if promedio_lider is not None:
+        fig_radar.add_trace(go.Scatterpolar(r=promedio_lider.values.fillna(0),
                                               theta=COMPETENCIAS_LIDERAZGO,
                                               fill="toself",
                                               name=f"Líder: {seleccion_lider}",
@@ -332,7 +346,7 @@ if uploaded_file is not None:
 
     mejores_tray = df_filtrado[
         df_filtrado.apply(lambda row: es_top(row.get("Categoría 2024")) and
-                                      (es_top(row.get("Categoría 2023")) or es_top(row.get("Categoría 2022"))), axis=1)
+                                     (es_top(row.get("Categoría 2023")) or es_top(row.get("Categoría 2022"))), axis=1)
     ]
     st.dataframe(mejores_tray[["Evaluado"] + columnas_hist], use_container_width=True)
 
@@ -340,19 +354,23 @@ if uploaded_file is not None:
 
     malas_tray = df_filtrado[
         df_filtrado.apply(lambda row: es_bajo(row.get("Categoría 2024")) and
-                                      (es_bajo(row.get("Categoría 2023")) or es_bajo(row.get("Categoría 2022"))), axis=1)
+                                     (es_bajo(row.get("Categoría 2023")) or es_bajo(row.get("Categoría 2022"))), axis=1)
     ]
     st.dataframe(malas_tray[["Evaluado"] + columnas_hist], use_container_width=True)
 
     # Evolución Individual Mejorada
     st.subheader("📈 Evolución y Trayectoria Individual")
 
-    col_sel_trabajador, _ = st.columns([1, 2])
-    with col_sel_trabajador:
-        trabajador = st.selectbox("Selecciona trabajador", ["Ninguno"] + sorted(df_filtrado["Evaluado"].dropna().unique().tolist()), key='sel_trab_hist')
+    trabajadores_disponibles = sorted(df_filtrado["Evaluado"].dropna().unique().tolist())
+    trabajador = st.selectbox(
+        "👤 Selecciona el Trabajador para ver su detalle (puedes buscar por nombre)",
+        ["Ninguno"] + trabajadores_disponibles,
+        key='sel_trab_hist'
+    )
 
     if trabajador != "Ninguno":
 
+        # Obtener información del trabajador
         trabajador_info = df_filtrado.loc[df_filtrado['Evaluado'] == trabajador].iloc[0]
 
         # 1. Evolución de Nota Global (Línea)
@@ -392,68 +410,70 @@ if uploaded_file is not None:
         with col_cat:
             st.metric("Categoría 2024", trabajador_info.get("Categoría 2024", "N/A"))
         with col_feed:
-            st.metric("Avances Feedback", trabajador_info.get("Avances Feedback", "N/A"))
+            st.metric("Estado Feedback", trabajador_info.get("Estado Feedback", "N/A"))
 
-        # 3. Evolución de Competencias (Gráfico dinámico)
-        st.markdown("#### Desempeño en Competencias vs. Promedio del Grupo")
+        # 3. Comparación de Competencias (Gráfico dinámico)
+        st.markdown("#### Comparación de Competencias Transversales")
 
-        competencias_existentes = [c for c in COMPETENCIAS_TRANSVERSALES if c in df_filtrado.columns and pd.notna(trabajador_info.get(c))]
-        num_competencias = len(competencias_existentes)
-
-        # --- Lógica condicional: Radar si >= 3, Barras si > 0, Mensaje si = 0 ---
-
-        if num_competencias >= 3:
-            # CASO 1: Hay 3 o más competencias -> Usamos el Gráfico de Radar
-            st.markdown("<h5 style='text-align: center; color: grey;'>Gráfico de Radar</h5>", unsafe_allow_html=True)
-            datos_trabajador = trabajador_info[competencias_existentes]
-            promedio_filtrado = df_filtrado[competencias_existentes].mean()
-
-            fig_comp_radar = go.Figure()
-            fig_comp_radar.add_trace(go.Scatterpolar(r=promedio_filtrado.values, theta=competencias_existentes, fill="toself", name="Promedio Grupo Filtrado", line=dict(color=COLORES_CATEGORIAS["Cumple"])))
-            fig_comp_radar.add_trace(go.Scatterpolar(r=datos_trabajador.values, theta=competencias_existentes, fill="toself", name=f"{trabajador}", line=dict(color=COLORES_CATEGORIAS["Destacado"])))
-            fig_comp_radar.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0, 5])), showlegend=True, title="Competencias Transversales (Escala 1 a 5)")
-            st.plotly_chart(fig_comp_radar, use_container_width=True)
-
-        elif num_competencias > 0:
-            # CASO 2: Hay 1 o 2 competencias -> Usamos un Gráfico de Barras Horizontales
-            st.markdown("<h5 style='text-align: center; color: grey;'>Gráfico de Barras</h5>", unsafe_allow_html=True)
-            datos_trabajador_bar = trabajador_info[competencias_existentes]
-            promedio_filtrado_bar = df_filtrado[competencias_existentes].mean()
-
-            # Creamos un DataFrame para facilitar el gráfico de barras agrupado
-            df_bar = pd.DataFrame({
-                'Competencia': competencias_existentes,
-                f'{trabajador}': datos_trabajador_bar.values,
-                'Promedio Grupo Filtrado': promedio_filtrado_bar.values
-            }).melt(id_vars='Competencia', var_name='Métrica', value_name='Valor')
-
-            fig_comp_bar = px.bar(
-                df_bar,
-                x='Valor',
-                y='Competencia',
-                color='Métrica',
-                barmode='group',
-                orientation='h',
-                text_auto='.2f', # Muestra el valor en la barra
-                color_discrete_map={
-                    f'{trabajador}': COLORES_CATEGORIAS["Destacado"],
-                    'Promedio Grupo Filtrado': COLORES_CATEGORIAS["Cumple"]
-                }
-            )
-            fig_comp_bar.update_layout(
-                title_text="Comparación de Competencias (Escala 1 a 5)",
-                xaxis_title="Nota",
-                yaxis_title="",
-                legend_title="Referencia",
-                uniformtext_minsize=8,
-                uniformtext_mode='hide'
-            )
-            fig_comp_bar.update_xaxes(range=[0, 5.5]) # Damos espacio para el texto
-            st.plotly_chart(fig_comp_bar, use_container_width=True)
-
+        # Determinar el grupo de comparación (Sub-área del trabajador)
+        subarea_trabajador = trabajador_info.get("Sub-área")
+        
+        if subarea_trabajador and subarea_trabajador != "Sin Asignar":
+            df_grupo_comp = df_filtrado[df_filtrado["Sub-área"] == subarea_trabajador]
+            nombre_grupo = f"Promedio Sub-área: {subarea_trabajador}"
         else:
-            # CASO 3: No hay datos de competencias
-            st.warning("No se encontraron datos de competencias transversales para este trabajador.")
+            # Si no hay sub-área, usamos el filtro actual completo (Dirección/Área) como fallback
+            df_grupo_comp = df_filtrado
+            nombre_grupo = "Promedio Grupo Filtrado (Sin Sub-área definida)"
+
+        competencias_existentes = [c for c in COMPETENCIAS_TRANSVERSALES if c in df_grupo_comp.columns]
+        
+        if not competencias_existentes:
+            st.warning("No se encontraron datos de competencias transversales para el grupo de comparación.")
+        else:
+            # Selector de Competencia
+            competencia_seleccionada = st.selectbox(
+                "🎯 Selecciona la Competencia para Comparar:",
+                competencias_existentes,
+                key='sel_comp_ind'
+            )
+
+            # Cálculo de los valores
+            nota_trabajador = trabajador_info.get(competencia_seleccionada, np.nan)
+            promedio_grupo = df_grupo_comp[competencia_seleccionada].mean()
+
+            # Crear DataFrame para el gráfico de barras
+            df_bar = pd.DataFrame({
+                'Métrica': [trabajador, nombre_grupo],
+                'Valor': [nota_trabajador, promedio_grupo],
+            }).dropna(subset=['Valor'])
+
+            if not df_bar.empty:
+                st.markdown(f"##### Comparación en **'{competencia_seleccionada}'** (Escala 1 a 5)")
+
+                fig_comp_bar = px.bar(
+                    df_bar,
+                    x='Valor',
+                    y='Métrica',
+                    color='Métrica',
+                    orientation='h',
+                    text_auto='.2f',
+                    color_discrete_map={
+                        trabajador: COLORES_CATEGORIAS["Destacado"],
+                        nombre_grupo: COLORES_CATEGORIAS["Cumple"]
+                    }
+                )
+                fig_comp_bar.update_layout(
+                    xaxis_title="Nota",
+                    yaxis_title="",
+                    legend_title="Referencia",
+                    uniformtext_minsize=8,
+                    uniformtext_mode='hide'
+                )
+                fig_comp_bar.update_xaxes(range=[0, 5.5])
+                st.plotly_chart(fig_comp_bar, use_container_width=True)
+            else:
+                st.warning(f"No hay datos de '{competencia_seleccionada}' disponibles para {trabajador} o su grupo de comparación.")
 
 else:
     st.info("📂 Sube un archivo CSV para comenzar. El sistema intentará detectar distintos separadores y codificaciones.")
