@@ -286,9 +286,10 @@ if uploaded_file is not None:
 
     fig_radar = go.Figure()
     
-    # 1. Promedio Clínica: Solo si existe al menos una competencia con datos en el promedio de la clínica
+    # 1. Promedio Clínica: Solo si existe al menos una competencia con datos
     if not promedio_clinica.isnull().all():
-        fig_radar.add_trace(go.Scatterpolar(r=promedio_clinica.values.fillna(0),
+        # **Fórmula Robusta y Correcta:** .fillna(0) primero, luego .values
+        fig_radar.add_trace(go.Scatterpolar(r=promedio_clinica.fillna(0).values,
                                             theta=COMPETENCIAS_LIDERAZGO,
                                             fill="toself",
                                             name="Promedio Clínica",
@@ -299,7 +300,8 @@ if uploaded_file is not None:
 
     # 2. Promedio Dirección
     if promedio_direccion_data is not None:
-        fig_radar.add_trace(go.Scatterpolar(r=promedio_direccion_data.values.fillna(0),
+        # **Fórmula Robusta y Correcta:** .fillna(0) primero, luego .values
+        fig_radar.add_trace(go.Scatterpolar(r=promedio_direccion_data.fillna(0).values,
                                               theta=COMPETENCIAS_LIDERAZGO,
                                               fill="toself",
                                               name=f"Promedio Dirección: {seleccion_direccion_radar}",
@@ -307,7 +309,8 @@ if uploaded_file is not None:
 
     # 3. Líder Específico
     if promedio_lider_data is not None:
-        fig_radar.add_trace(go.Scatterpolar(r=promedio_lider_data.values.fillna(0),
+        # **Fórmula Robusta y Correcta:** .fillna(0) primero, luego .values
+        fig_radar.add_trace(go.Scatterpolar(r=promedio_lider_data.fillna(0).values,
                                               theta=COMPETENCIAS_LIDERAZGO,
                                               fill="toself",
                                               name=f"Líder: {seleccion_lider}",
