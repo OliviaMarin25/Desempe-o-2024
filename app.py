@@ -81,14 +81,13 @@ def load_and_process_data(uploaded_file):
             df_proc[col] = df_proc[col].fillna("Sin Asignar")
 
     # Columna de Feedback: Usar "Estado Feedback" o generar una columna de ejemplo si no existe
-    if "Estado Feedback" not in df_proc.columns:
-        np.random.seed(42)
-        st.warning("Columna 'Estado Feedback' no encontrada. Se generarán datos de ejemplo.")
-        df_proc["Estado Feedback"] = np.random.choice(["Completado", "En Proceso", "Pendiente"], size=len(df_proc))
+    # Se usa un nombre de columna sin espacios para el procesamiento interno
+    FEEDBACK_COL_NAME = "Estado Feedback" 
     
-    # Asegurar que el nombre de la columna sea limpio para uso futuro
-    df_proc.rename(columns={"Estado Feedback": "Estado_Feedback"}, inplace=True)
-
+    if FEEDBACK_COL_NAME not in df_proc.columns:
+        np.random.seed(42)
+        st.warning(f"Columna '{FEEDBACK_COL_NAME}' no encontrada. Se generarán datos de ejemplo.")
+        df_proc[FEEDBACK_COL_NAME] = np.random.choice(["Completado", "En Proceso", "Pendiente"], size=len(df_proc))
 
     return df_proc
 
@@ -102,10 +101,6 @@ if uploaded_file is not None:
 
     if df is None:
         st.stop()
-        
-    # Renombrarla a "Estado Feedback" para el display
-    df.rename(columns={"Estado_Feedback": "Estado Feedback"}, inplace=True)
-
 
     # ============================
     # Filtros dinámicos (Sidebar)
@@ -280,19 +275,20 @@ if uploaded_file is not None:
 
     if seleccion_direccion_radar != "Ninguno":
         promedio_direccion = df[df["Dirección"] == seleccion_direccion_radar][COMPETENCIAS_LIDERAZGO].mean()
-
-    if promedio_direccion is not None and promedio_direccion.isnull().all():
-        promedio_direccion = None # Si todos son NaN, no mostrar
+        # Verificar si hay datos válidos en el promedio de la dirección
+        if promedio_direccion.isnull().all():
+            promedio_direccion = None
 
     if seleccion_lider != "Ninguno":
         promedio_lider = df[df["Evaluado"] == seleccion_lider][COMPETENCIAS_LIDERAZGO].mean()
-        
-    if promedio_lider is not None and promedio_lider.isnull().all():
-        promedio_lider = None # Si todos son NaN, no mostrar
+        # Verificar si hay datos válidos en el promedio del líder
+        if promedio_lider.isnull().all():
+            promedio_lider = None
 
     fig_radar = go.Figure()
-
-    fig_radar.add_trace(go.Scatterpolar(r=promedio_clinica.values.fillna(0), # Rellenar NaN con 0 para que el gráfico no falle
+    
+    # El promedio de la clínica siempre se agrega, rellenando NaN con 0
+    fig_radar.add_trace(go.Scatterpolar(r=promedio_clinica.values.fillna(0),
                                           theta=COMPETENCIAS_LIDERAZGO,
                                           fill="toself",
                                           name="Promedio Clínica",
@@ -418,23 +414,36 @@ if uploaded_file is not None:
         # Determinar el grupo de comparación (Sub-área del trabajador)
         subarea_trabajador = trabajador_info.get("Sub-área")
         
-        if subarea_trabajador and subarea_trabajador != "Sin Asignar":
+        # Primero, intento comparar con la Sub-área
+        if subarea_trabajador and subarea_trabajador != "Sin Asignar" and len(df_filtrado[df_filtrado["Sub-área"] == subarea_trabajador]) > 1:
             df_grupo_comp = df_filtrado[df_filtrado["Sub-área"] == subarea_trabajador]
             nombre_grupo = f"Promedio Sub-área: {subarea_trabajador}"
+        elif trabajador_info.get("Área") and trabajador_info.get("Área") != "Sin Asignar" and len(df_filtrado[df_filtrado["Área"] == trabajador_info.get("Área")]) > 1:
+             # Si no hay sub-área, intento con Área
+             area_trabajador = trabajador_info.get("Área")
+             df_grupo_comp = df_filtrado[df_filtrado["Área"] == area_trabajador]
+             nombre_grupo = f"Promedio Área: {area_trabajador}"
         else:
-            # Si no hay sub-área, usamos el filtro actual completo (Dirección/Área) como fallback
+            # Fallback al filtro actual completo (Dirección/Área/Sub-área)
             df_grupo_comp = df_filtrado
-            nombre_grupo = "Promedio Grupo Filtrado (Sin Sub-área definida)"
+            nombre_grupo = "Promedio Grupo Filtrado"
 
         competencias_existentes = [c for c in COMPETENCIAS_TRANSVERSALES if c in df_grupo_comp.columns]
         
         if not competencias_existentes:
             st.warning("No se encontraron datos de competencias transversales para el grupo de comparación.")
         else:
+            # Filtramos solo las competencias que el trabajador tiene valor (no NaN)
+            competencias_con_datos_trab = [c for c in competencias_existentes if pd.notna(trabajador_info.get(c))]
+            
+            if not competencias_con_datos_trab:
+                 st.warning(f"El trabajador {trabajador} no tiene notas en las competencias transversales definidas.")
+                 st.stop()
+                 
             # Selector de Competencia
             competencia_seleccionada = st.selectbox(
                 "🎯 Selecciona la Competencia para Comparar:",
-                competencias_existentes,
+                competencias_con_datos_trab,
                 key='sel_comp_ind'
             )
 
