@@ -81,7 +81,6 @@ def load_and_process_data(uploaded_file):
             df_proc[col] = df_proc[col].fillna("Sin Asignar")
 
     # Columna de Feedback: Usar "Estado Feedback" o generar una columna de ejemplo si no existe
-    # Se usa un nombre de columna sin espacios para el procesamiento interno
     FEEDBACK_COL_NAME = "Estado Feedback" 
     
     if FEEDBACK_COL_NAME not in df_proc.columns:
@@ -270,48 +269,59 @@ if uploaded_file is not None:
 
     # Cálculos para el radar de Liderazgo
     promedio_clinica = df[COMPETENCIAS_LIDERAZGO].mean()
-    promedio_direccion = None
-    promedio_lider = None
+    promedio_direccion_data = None
+    promedio_lider_data = None
 
     if seleccion_direccion_radar != "Ninguno":
-        promedio_direccion = df[df["Dirección"] == seleccion_direccion_radar][COMPETENCIAS_LIDERAZGO].mean()
+        promedio_direccion_data = df[df["Dirección"] == seleccion_direccion_radar][COMPETENCIAS_LIDERAZGO].mean()
         # Verificar si hay datos válidos en el promedio de la dirección
-        if promedio_direccion.isnull().all():
-            promedio_direccion = None
+        if promedio_direccion_data.isnull().all():
+            promedio_direccion_data = None
 
     if seleccion_lider != "Ninguno":
-        promedio_lider = df[df["Evaluado"] == seleccion_lider][COMPETENCIAS_LIDERAZGO].mean()
+        promedio_lider_data = df[df["Evaluado"] == seleccion_lider][COMPETENCIAS_LIDERAZGO].mean()
         # Verificar si hay datos válidos en el promedio del líder
-        if promedio_lider.isnull().all():
-            promedio_lider = None
+        if promedio_lider_data.isnull().all():
+            promedio_lider_data = None
 
     fig_radar = go.Figure()
     
-    # El promedio de la clínica siempre se agrega, rellenando NaN con 0
-    fig_radar.add_trace(go.Scatterpolar(r=promedio_clinica.values.fillna(0),
-                                          theta=COMPETENCIAS_LIDERAZGO,
-                                          fill="toself",
-                                          name="Promedio Clínica",
-                                          line=dict(color=COLORES_CATEGORIAS["Destacado"])))
+    # 1. Promedio Clínica: Solo si existe al menos una competencia con datos en el promedio de la clínica
+    if not promedio_clinica.isnull().all():
+        fig_radar.add_trace(go.Scatterpolar(r=promedio_clinica.values.fillna(0),
+                                            theta=COMPETENCIAS_LIDERAZGO,
+                                            fill="toself",
+                                            name="Promedio Clínica",
+                                            line=dict(color=COLORES_CATEGORIAS["Destacado"])))
+    else:
+        st.warning("No hay datos de competencias de liderazgo para el Promedio de la Clínica.")
 
-    if promedio_direccion is not None:
-        fig_radar.add_trace(go.Scatterpolar(r=promedio_direccion.values.fillna(0),
+
+    # 2. Promedio Dirección
+    if promedio_direccion_data is not None:
+        fig_radar.add_trace(go.Scatterpolar(r=promedio_direccion_data.values.fillna(0),
                                               theta=COMPETENCIAS_LIDERAZGO,
                                               fill="toself",
                                               name=f"Promedio Dirección: {seleccion_direccion_radar}",
                                               line=dict(color=COLORES_CATEGORIAS["Cumple"])))
 
-    if promedio_lider is not None:
-        fig_radar.add_trace(go.Scatterpolar(r=promedio_lider.values.fillna(0),
+    # 3. Líder Específico
+    if promedio_lider_data is not None:
+        fig_radar.add_trace(go.Scatterpolar(r=promedio_lider_data.values.fillna(0),
                                               theta=COMPETENCIAS_LIDERAZGO,
                                               fill="toself",
                                               name=f"Líder: {seleccion_lider}",
                                               line=dict(color=COLORES_CATEGORIAS["Excepcional"])))
+        
+    # Verificar si se agregó al menos un rastro antes de mostrar el gráfico
+    if len(fig_radar.data) > 0:
+        fig_radar.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0, 5])),
+                                showlegend=True,
+                                title="Nivelación de Competencias de Liderazgo (Escala 1 a 5)")
+        st.plotly_chart(fig_radar, use_container_width=True)
+    else:
+        st.info("No se pudo generar el gráfico de Radar. Asegúrate de que las columnas de competencias de liderazgo y los datos existan en el archivo CSV.")
 
-    fig_radar.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0, 5])),
-                            showlegend=True,
-                            title="Nivelación de Competencias de Liderazgo (Escala 1 a 5)")
-    st.plotly_chart(fig_radar, use_container_width=True)
 
     st.markdown("---")
 
@@ -411,22 +421,29 @@ if uploaded_file is not None:
         # 3. Comparación de Competencias (Gráfico dinámico)
         st.markdown("#### Comparación de Competencias Transversales")
 
-        # Determinar el grupo de comparación (Sub-área del trabajador)
+        # Lógica de determinación del grupo de comparación
         subarea_trabajador = trabajador_info.get("Sub-área")
+        area_trabajador = trabajador_info.get("Área")
+        direccion_trabajador = trabajador_info.get("Dirección")
         
-        # Primero, intento comparar con la Sub-área
-        if subarea_trabajador and subarea_trabajador != "Sin Asignar" and len(df_filtrado[df_filtrado["Sub-área"] == subarea_trabajador]) > 1:
-            df_grupo_comp = df_filtrado[df_filtrado["Sub-área"] == subarea_trabajador]
-            nombre_grupo = f"Promedio Sub-área: {subarea_trabajador}"
-        elif trabajador_info.get("Área") and trabajador_info.get("Área") != "Sin Asignar" and len(df_filtrado[df_filtrado["Área"] == trabajador_info.get("Área")]) > 1:
-             # Si no hay sub-área, intento con Área
-             area_trabajador = trabajador_info.get("Área")
-             df_grupo_comp = df_filtrado[df_filtrado["Área"] == area_trabajador]
-             nombre_grupo = f"Promedio Área: {area_trabajador}"
-        else:
-            # Fallback al filtro actual completo (Dirección/Área/Sub-área)
-            df_grupo_comp = df_filtrado
-            nombre_grupo = "Promedio Grupo Filtrado"
+        df_grupo_comp = df_filtrado
+        nombre_grupo = "Promedio Grupo Filtrado"
+        
+        # 1. Intentar con Sub-área (si está definida y hay más de 1 persona en ella en el filtro actual)
+        if subarea_trabajador and subarea_trabajador != "Sin Asignar":
+            df_subarea = df_filtrado[df_filtrado["Sub-área"] == subarea_trabajador]
+            if len(df_subarea) > 1:
+                df_grupo_comp = df_subarea
+                nombre_grupo = f"Promedio Sub-área: {subarea_trabajador}"
+            
+        # 2. Si no fue Sub-área, intentar con Área (si está definida y hay más de 1 persona en ella en el filtro actual)
+        if nombre_grupo == "Promedio Grupo Filtrado" and area_trabajador and area_trabajador != "Sin Asignar":
+             df_area = df_filtrado[df_filtrado["Área"] == area_trabajador]
+             if len(df_area) > 1:
+                df_grupo_comp = df_area
+                nombre_grupo = f"Promedio Área: {area_trabajador}"
+        
+        # 3. Fallback: Mantener el filtro aplicado (Dirección) o el grupo completo si no hay filtros.
 
         competencias_existentes = [c for c in COMPETENCIAS_TRANSVERSALES if c in df_grupo_comp.columns]
         
@@ -437,7 +454,7 @@ if uploaded_file is not None:
             competencias_con_datos_trab = [c for c in competencias_existentes if pd.notna(trabajador_info.get(c))]
             
             if not competencias_con_datos_trab:
-                 st.warning(f"El trabajador {trabajador} no tiene notas en las competencias transversales definidas.")
+                 st.warning(f"El trabajador {trabajador} no tiene notas válidas en las competencias transversales definidas.")
                  st.stop()
                  
             # Selector de Competencia
