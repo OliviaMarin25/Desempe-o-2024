@@ -382,16 +382,24 @@ if uploaded_file is not None:
     # Evolución Individual Mejorada
     st.subheader("📈 Evolución y Trayectoria Individual")
 
-    trabajadores_disponibles = sorted(df_filtrado["Evaluado"].dropna().unique().tolist())
-    trabajador = st.selectbox(
-        "👤 Selecciona el Trabajador para ver su detalle (puedes buscar por nombre)",
-        ["Ninguno"] + trabajadores_disponibles,
-        key='sel_trab_hist'
+    # Obtiene la lista de trabajadores después de aplicar los filtros del sidebar
+    trabajadores_disponibles_filtrados = sorted(df_filtrado["Evaluado"].dropna().unique().tolist())
+    
+    # === MODIFICACIÓN CLAVE: st.multiselect para permitir búsqueda y mantener selección única ===
+    trabajador_seleccionado = st.multiselect(
+        "👤 Busca o selecciona el Trabajador para ver su detalle (La lista se filtra con los controles del menú izquierdo)",
+        options=trabajadores_disponibles_filtrados,
+        default=[],
+        max_selections=1, # Limita a una sola selección para mantener la lógica individual
+        placeholder="Escribe el nombre del trabajador..."
     )
 
+    # Extraer el nombre del trabajador de la lista (será una lista con 0 o 1 elemento)
+    trabajador = trabajador_seleccionado[0] if trabajador_seleccionado else "Ninguno"
+    
     if trabajador != "Ninguno":
 
-        # Obtener información del trabajador
+        # Obtener información del trabajador (ahora usando df_filtrado que ya tiene el filtro aplicado)
         trabajador_info = df_filtrado.loc[df_filtrado['Evaluado'] == trabajador].iloc[0]
 
         # 1. Evolución de Nota Global (Línea)
@@ -447,14 +455,15 @@ if uploaded_file is not None:
         # 1. Intentar con Sub-área (si está definida y hay más de 1 persona en ella en el filtro actual)
         if subarea_trabajador and subarea_trabajador != "Sin Asignar":
             df_subarea = df_filtrado[df_filtrado["Sub-área"] == subarea_trabajador]
-            if len(df_subarea) > 1:
+            # Nos aseguramos de que el grupo no sea solo el trabajador seleccionado (por eso > 1)
+            if len(df_subarea) > 1 or (len(df_subarea) == 1 and df_subarea["Evaluado"].iloc[0] != trabajador): 
                 df_grupo_comp = df_subarea
                 nombre_grupo = f"Promedio Sub-área: {subarea_trabajador}"
             
         # 2. Si no fue Sub-área, intentar con Área (si está definida y hay más de 1 persona en ella en el filtro actual)
         if nombre_grupo == "Promedio Grupo Filtrado" and area_trabajador and area_trabajador != "Sin Asignar":
              df_area = df_filtrado[df_filtrado["Área"] == area_trabajador]
-             if len(df_area) > 1:
+             if len(df_area) > 1 or (len(df_area) == 1 and df_area["Evaluado"].iloc[0] != trabajador):
                 df_grupo_comp = df_area
                 nombre_grupo = f"Promedio Área: {area_trabajador}"
         
@@ -470,7 +479,6 @@ if uploaded_file is not None:
             
             if not competencias_con_datos_trab:
                  st.warning(f"El trabajador {trabajador} no tiene notas válidas en las competencias transversales definidas.")
-                 # La línea st.stop() estaba causando un error al no tener el 'else' adecuado en el nivel superior, la removemos.
                  
             # Selector de Competencia
             competencia_seleccionada = st.selectbox(
@@ -481,8 +489,15 @@ if uploaded_file is not None:
 
             # Cálculo de los valores
             nota_trabajador = trabajador_info.get(competencia_seleccionada, np.nan)
-            promedio_grupo = df_grupo_comp[competencia_seleccionada].mean()
-
+            
+            # Cálculo del promedio del grupo, excluyendo al trabajador seleccionado si es posible
+            if nombre_grupo != "Promedio Grupo Filtrado":
+                # Si el grupo no es el filtro total, excluimos al trabajador para un promedio más limpio
+                promedio_grupo = df_grupo_comp[df_grupo_comp["Evaluado"] != trabajador][competencia_seleccionada].mean()
+            else:
+                 # Si el grupo es el filtro total, se calcula el promedio
+                promedio_grupo = df_grupo_comp[competencia_seleccionada].mean()
+            
             # Crear DataFrame para el gráfico de barras
             df_bar = pd.DataFrame({
                 'Métrica': [trabajador, nombre_grupo],
