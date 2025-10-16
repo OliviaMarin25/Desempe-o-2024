@@ -400,13 +400,22 @@ if uploaded_file is not None:
     # Obtiene la lista de trabajadores después de aplicar los filtros del sidebar
     trabajadores_disponibles_filtrados = sorted(df_filtrado["Evaluado"].dropna().unique().tolist())
     
-    # === Selector con búsqueda de texto ===
+    # === Selector con búsqueda de texto: FORZAMOS A QUE HAYA UNA OPCIÓN SELECCIONADA AL INICIO (si hay datos) ===
+    # Si no hay selección anterior y hay trabajadores disponibles, seleccionamos el primero
+    initial_selection = []
+    if 'trabajador_seleccionado_state' in st.session_state and st.session_state.trabajador_seleccionado_state:
+        # Mantenemos la selección si todavía existe en la lista filtrada
+        if st.session_state.trabajador_seleccionado_state[0] in trabajadores_disponibles_filtrados:
+            initial_selection = st.session_state.trabajador_seleccionado_state
+    
+    # Usamos la clave para guardar el estado en la sesión
     trabajador_seleccionado = st.multiselect(
         "👤 Busca o selecciona el Trabajador para ver su detalle (La lista se filtra con los controles del menú izquierdo)",
         options=trabajadores_disponibles_filtrados,
-        default=[],
-        max_selections=1, # Limita a una sola selección para mantener la lógica individual
-        placeholder="Escribe el nombre del trabajador..."
+        default=initial_selection,
+        max_selections=1, 
+        placeholder="Escribe el nombre del trabajador...",
+        key='trabajador_seleccionado_state' # Usamos una key para manejar el estado
     )
 
     # Extraer el nombre del trabajador de la lista (será una lista con 0 o 1 elemento)
@@ -483,7 +492,7 @@ if uploaded_file is not None:
         
         # 3. Fallback: Mantener el filtro aplicado (Dirección) o el grupo completo si no hay filtros.
 
-        # Filtramos las competencias que tienen datos válidos para el trabajador
+        # Filtramos las competencias que tienen datos válidos para el trabajador Y que existen en el DataFrame del grupo
         competencias_con_datos_trab = [c for c in COMPETENCIAS_TRANSVERSALES if pd.notna(trabajador_info.get(c)) and c in df_grupo_comp.columns]
         
         if not competencias_con_datos_trab:
