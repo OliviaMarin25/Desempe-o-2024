@@ -64,6 +64,19 @@ def load_and_process_data(uploaded_file):
     df.columns = df.columns.str.strip()
     df_proc = df.copy()
 
+    # --- 1. Normalización de Títulos de Columna (Case-Insensitive para Feedback) ---
+    FEEDBACK_COL_NAME_TARGET = "Estado Feedback"
+    
+    # Crea un mapeo de columnas en minúsculas para búsqueda
+    lower_case_cols_map = {col.lower(): col for col in df_proc.columns}
+    original_feedback_col = lower_case_cols_map.get(FEEDBACK_COL_NAME_TARGET.lower())
+
+    # Si se encuentra, renómbrala a la versión estándar esperada
+    if original_feedback_col and original_feedback_col != FEEDBACK_COL_NAME_TARGET:
+        df_proc.rename(columns={original_feedback_col: FEEDBACK_COL_NAME_TARGET}, inplace=True)
+        # Nota: La advertencia sobre la columna no encontrada se evitará si el renombrado es exitoso.
+
+
     # Conversión de notas a numérico
     df_proc["Nota_num_2024"] = pd.to_numeric(df_proc.get("Nota 2024", pd.Series(dtype='float64')), errors="coerce")
     df_proc["Nota_num_2023"] = pd.to_numeric(df_proc.get("Nota 2023", pd.Series(dtype='float64')), errors="coerce")
@@ -81,12 +94,11 @@ def load_and_process_data(uploaded_file):
             df_proc[col] = df_proc[col].fillna("Sin Asignar")
 
     # Columna de Feedback: Usar "Estado Feedback" o generar una columna de ejemplo si no existe
-    FEEDBACK_COL_NAME = "Estado Feedback" 
-    
-    if FEEDBACK_COL_NAME not in df_proc.columns:
+    # Usamos la variable TARGET para el chequeo final.
+    if FEEDBACK_COL_NAME_TARGET not in df_proc.columns: 
         np.random.seed(42)
-        st.warning(f"Columna '{FEEDBACK_COL_NAME}' no encontrada. Se generarán datos de ejemplo.")
-        df_proc[FEEDBACK_COL_NAME] = np.random.choice(["Completado", "En Proceso", "Pendiente"], size=len(df_proc))
+        st.warning(f"Columna '{FEEDBACK_COL_NAME_TARGET}' no encontrada. Se generarán datos de ejemplo.")
+        df_proc[FEEDBACK_COL_NAME_TARGET] = np.random.choice(["Completado", "En Proceso", "Pendiente"], size=len(df_proc))
 
     return df_proc
 
@@ -458,7 +470,7 @@ if uploaded_file is not None:
             
             if not competencias_con_datos_trab:
                  st.warning(f"El trabajador {trabajador} no tiene notas válidas en las competencias transversales definidas.")
-                 st.stop()
+                 # La línea st.stop() estaba causando un error al no tener el 'else' adecuado en el nivel superior, la removemos.
                  
             # Selector de Competencia
             competencia_seleccionada = st.selectbox(
